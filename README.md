@@ -72,7 +72,8 @@ tools are:
 | `ask_user` | ask you a question (chat only) |
 
 With `TRIPO_API_KEY` in `.env` it also gets `create_character_from_text`, `create_character_from_image` and
-`segment_character` to make a new plush.
+`segment_character` to make a new plush. The Tripo key is not shared in the repository: if you need one, ask Jackson Fang
+and put it in your own `.env` (git-ignored, never commit it). Everything else works without it.
 
 `run_shell` refuses commands that delete files, push, or install packages. Each conversation, with every tool call
 and command, is saved in `runs/director/`.
