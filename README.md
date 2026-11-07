@@ -3,9 +3,12 @@
 **An agent that makes a non-humanoid character dance along with a human dancer.** CS329Z, Fall 2026.
 Tianrun Yan, Jackson Fang, Xi Liu.
 
-Tell it which dance video and which character to use. The agent does the rest: it finds the files, runs pose
-detection, imports and rigs the character, plans how the dance should look on a body with no legs and no neck,
-checks and revises the plan, renders it in Blender and puts it next to the dancer.
+**The target scenario:** a plush toy (a soft body with no legs and no neck) dances along with a person in a video,
+in the same rhythm. The output is the dancer and the plush side by side. On top of that you can ask for motions the
+dancer does not make, such as spinning the whole time.
+
+You tell the agent where the dance video and the plush are. It decides the steps itself and carries them out with
+tools: it reads the dance, prepares the character, plans the motion, checks and revises it, and renders the video.
 
 ## Setup
 
@@ -24,6 +27,10 @@ Videos are not in the repository. Put a short single-dancer clip in `videos/`, f
 
 ## Run
 
+Tell the agent **where the dance video is** and **which plush to use**, either a rigged character in `assets/`
+(e.g. `plush_soft`) or the path to a `.glb` model. It reads those files from the paths you give; if you leave one
+out it searches for it and tells you what it picked.
+
 Talk to the agent:
 
 ```bash
@@ -31,14 +38,15 @@ uv run python -m dancebuddy chat
 ```
 
 ```
-you> Use videos/dance.mp4 with plush_soft and dance along the dancer.
+you> The dance is videos/dance.mp4 and the plush is assets/plush_soft. Dance along with the dancer.
 you> Now make a second version that keeps spinning slowly the whole time.
+you> Try my own plush instead: /path/to/my_plush.glb
 ```
 
 Or give it one request:
 
 ```bash
-uv run python -m dancebuddy go "make plush_soft dance to videos/dance.mp4"
+uv run python -m dancebuddy go "the dance is videos/dance.mp4, the plush is assets/plush_soft: dance along"
 ```
 
 The result is `runs/<dance>/side_by_side_<version>_preview.mp4`. Ask for "the final render" to get the textured
@@ -46,20 +54,28 @@ version. A request costs about $0.10 to $0.25.
 
 ## What the agent does
 
-| Step | How |
+The agent is an LLM (via OpenRouter) in a tool-calling loop. It chooses which tools to call and in what order; the
+tools are:
+
+| Tool | What it does |
 |---|---|
-| Find the inputs | searches for videos and `.glb` models; rigged characters live in `assets/` (default `plush_soft`) |
-| Perceive the dance | runs `python -m dancebuddy perceive`: MediaPipe pose, then beats, accents and move units |
-| Prepare the character | imports a GLB and builds the soft rig (works best on plush-like bodies with blue arms) |
-| Plan | per move unit: how much of the body, arms, groove, head and travel to copy, how to translate leg moves, which accents to hit |
-| Check and revise | numeric checks (accents, completeness, in frame, range), an arm geometry check, a vision review of rendered frames |
-| Extra motions | `spin`, `bounce`, `sway`, `freeze`, `still` (stop copying) over any time window, each checked |
-| Render | runs `render` and `compose` in Blender and FFmpeg, then looks at the frames |
+| `find_files`, `list_characters` | find dance videos and `.glb` models; list the plush characters that are already rigged |
+| `run_shell`, `run_python` | run commands in the project, e.g. `python -m dancebuddy perceive` (MediaPipe pose -> beats, accents, move units), `render`, `compose` |
+| `import_character` | import a `.glb` and build the soft rig (works best on plush-like bodies with blue arms) |
+| `open_dance` | load a perceived dance and a character, which unlocks the dance tools below |
+| `get_dance_score`, `get_dance_signals`, `get_leg_events`, `get_character_spec`, `get_plan_format` | read the dance and the plush's body |
+| `submit_plan` | apply a plan (per move unit: body, arms, groove, head and travel; leg moves; accent hits; extra motions `spin`, `bounce`, `sway`, `freeze`, `still`) and get the checks back: accents, completeness, in frame, range, and whether each requested motion happened |
+| `check_arm_geometry` | find arms folding or sinking into the body, without rendering |
+| `look_at_frames` | render chosen frames next to the dancer and get a vision model's review |
+| `keep_attempt` | save the chosen plan as a version for rendering |
+| `view_image` | look at a character view or a rendered frame |
+| `ask_user` | ask you a question (chat only) |
 
-The agent works through shell and Python tools. Commands that delete files, push, or install packages are refused.
-Each conversation, with every tool call and command, is saved in `runs/director/`.
+With `TRIPO_API_KEY` in `.env` it also gets `create_character_from_text`, `create_character_from_image` and
+`segment_character` to make a new plush.
 
-Optional: with `TRIPO_API_KEY` in `.env`, the agent can also generate a new character from text or a picture.
+`run_shell` refuses commands that delete files, push, or install packages. Each conversation, with every tool call
+and command, is saved in `runs/director/`.
 
 ## Evaluation
 
