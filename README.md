@@ -22,7 +22,7 @@ cp .env.example .env            # add your OPENROUTER_API_KEY
 uv run python -m dancebuddy check
 ```
 
-Videos are not in the repository. Put a short single-dancer clip in `videos/`, for example `dance.mp4` from our
+Videos are not in the repository. Put a short single-dancer clip in `data/videos/`, for example `dance.mp4` from our
 [Google Drive folder](https://drive.google.com/drive/folders/13GeHAkxMEQeliprKsiq4-0cibBo163s2?usp=sharing).
 
 ## Run
@@ -38,7 +38,7 @@ uv run python -m dancebuddy chat
 ```
 
 ```
-you> The dance is videos/dance.mp4 and the plush is assets/plush_soft. Dance along with the dancer.
+you> The dance is data/videos/dance.mp4 and the plush is assets/plush_soft. Dance along with the dancer.
 you> Now make a second version that keeps spinning slowly the whole time.
 you> Try my own plush instead: /path/to/my_plush.glb
 ```
@@ -46,7 +46,7 @@ you> Try my own plush instead: /path/to/my_plush.glb
 Or give it one request:
 
 ```bash
-uv run python -m dancebuddy go "the dance is videos/dance.mp4, the plush is assets/plush_soft: dance along"
+uv run python -m dancebuddy go "the dance is data/videos/dance.mp4, the plush is assets/plush_soft: dance along"
 ```
 
 The result is `runs/<dance>/side_by_side_<version>_preview.mp4`. Ask for "the final render" to get the textured
@@ -78,7 +78,7 @@ With `TRIPO_API_KEY` in `.env` it also gets `create_character_from_text`, `creat
 and put it in your own `.env` (git-ignored, never commit it). Everything else works without it.
 
 `run_shell` refuses commands that delete files, push, or install packages. Each conversation, with every tool call
-and command, is saved in `runs/director/`.
+and command, is saved in `runs/sessions/`.
 
 ## Evaluation
 
@@ -102,32 +102,44 @@ and cost.
 
 ```bash
 uv run pytest                                  # offline tests, no keys needed
-uv run python -m evaluation prepare            # perception on every dance in evaluation/data/dances.json
-uv run python -m evaluation run                # every system (--systems ..., --dance <id>, --no-llm)
-uv run python -m evaluation metrics --arms     # -> evaluation/results/results.{json,md}
-uv run python -m evaluation render --dance <id> --systems plain_copy agent   # optional side-by-side video
+uv run python -m dancebuddy.evaluation prepare            # perception on every dance in data/dances.json
+uv run python -m dancebuddy.evaluation run                # every system (--systems ..., --dance <id>, --no-llm)
+uv run python -m dancebuddy.evaluation metrics --arms     # -> results/results.{json,md}
+uv run python -m dancebuddy.evaluation render --dance <id> --systems plain_copy agent   # optional side-by-side video
 ```
 
-Add the evaluation clips (from the Drive folder above) to `evaluation/data/dances.json`; `synth`, a built-in
+Add the evaluation clips (from the Drive folder above) to `data/dances.json`; `synth`, a built-in
 synthetic dancer, needs no video. LLM runs are cached in `.cache/llm/`, so a rerun is free and gives the same answer.
 
-## Layout
+## Repository layout
 
 ```
+README.md  pyproject.toml  .env.example
 dancebuddy/
-  agent/          director.py: the one tool loop (go, chat, and plan_dance for the evaluation);
-                  prompts.py: its instructions; llm.py: OpenRouter client with cache and cost ledger
-  tools/          what the agent calls
-    perception/   perceive_dance: MediaPipe pose -> dance score
-    character/    import_character, Tripo tools, the character's rig and motion spec
-    dance/        open_dance and the dance tools: the plan, plan -> motion, checks, arm geometry, vision review
-    render.py     render_video: Blender render and side-by-side video
-  blender/        scripts the tools run inside Blender
-evaluation/
-  baselines/      the systems above (pose_copy, plain_copy, planner); the agent comes from dancebuddy/agent
-  data/           dances.json, characters.json, the synthetic dancer
-  metrics/        motion metrics and pixel metrics
-  results/        result tables and saved runs
-assets/           rigged plush characters, motion specs, rendered views, the MediaPipe model
-tests/            offline tests (mocked LLM and Tripo)
+  __main__.py             command line: go, chat, and the single steps (perceive, agent, render, character, ...)
+  chat.py                 talk to the agent in the terminal (chat) or give it one request (go)
+  llm.py                  OpenRouter client: tool calling, response cache, cost ledger
+  user.py                 who answers ask_user: ConsoleUser, NoUser, ScriptedUser
+  sandbox.py              run_terminal: the guarded shell behind run_shell
+  agent/
+    session.py            AgentSession: the tool-calling loop; plan_dance (only the dance tools, for evaluation)
+    registry.py           Tool, ToolRegistry: tool schemas for the model and the dispatch
+    prompts.py            the agent's instructions
+    tools/                what the agent can call
+      workspace.py        find_files, run_shell, run_python
+      perception/         perceive_dance: MediaPipe pose -> beats, accents, move units, signals
+      character/          list_characters, import_character (soft rig), Tripo tools, rig and motion spec
+      dance/              open_dance, get_*, submit_plan, check_arm_geometry, look_at_frames, keep_attempt;
+                          the plan, plan -> motion curves, the checks
+      render.py           render_video: Blender render and side-by-side video
+  evaluation/             python -m dancebuddy.evaluation: baselines, ablations, metrics, the synthetic dancer
+  blender/                scripts the tools run inside Blender (rigging, posing, rendering, mesh checks)
+data/
+  dances.json             the evaluation dances (videos are not committed)
+  characters.json         the characters the evaluation can use
+  videos/                 your dance clips (git-ignored)
+assets/                   rigged plush characters, motion specs, rendered views, the MediaPipe model
+results/                  evaluation tables and saved runs
+tests/                    offline tests: mocked LLM and Tripo, no keys needed
+runs/                     everything the agent writes (git-ignored)
 ```

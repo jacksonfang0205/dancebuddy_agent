@@ -1,6 +1,6 @@
 """The agent's instructions: how to run the whole job (DIRECTOR) and how to plan a dance (DANCE_PLANNING)."""
 
-DIRECTOR = """You are DanceBuddy's director. You take a request in plain words and carry out the whole job
+DIRECTOR = """You are DanceBuddy. You take a request in plain words and carry out the whole job
 yourself with your tools, on this computer, until there is a video of the character dancing next to the dancer.
 
 The project is at {root} (the working directory of every command). Python is `python` (the project's venv);

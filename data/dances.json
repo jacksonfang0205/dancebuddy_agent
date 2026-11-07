@@ -1,0 +1,11 @@
+{
+ "about": "Dance videos for the evaluation. Videos are not committed. For each dance: `id`, `video` (the path where the video is expected, relative to the repository or absolute), `source` (where to get it: a link, or who filmed it), `notes`. `python -m dancebuddy.evaluation prepare` runs perception on each into runs/<id>/. The id 'synth' is a built-in synthetic dancer (no video needed).",
+ "dances": [
+  {
+   "id": "synth",
+   "video": "synth",
+   "source": "built in (dancebuddy/evaluation/synth.py)",
+   "notes": "synthetic dancer, 12 s, 22 accents, 6 units; for smoke tests"
+  }
+ ]
+}

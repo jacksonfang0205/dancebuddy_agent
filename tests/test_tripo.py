@@ -5,8 +5,8 @@ import json
 import httpx
 import pytest
 
-from dancebuddy.tools.character.make import CHARACTER_SPECS, CharacterTools
-from dancebuddy.tools.character.tripo import Tripo, TripoError
+from dancebuddy.agent.tools.character.make import CHARACTER_SPECS, CharacterTools
+from dancebuddy.agent.tools.character.tripo import Tripo, TripoError
 
 TASK = "123e4567-e89b-42d3-a456-426614174000"
 
@@ -79,13 +79,14 @@ def test_tools_are_registered():
 def test_one_agent_offers_tripo_tools_and_dance_tools(monkeypatch):
     """One agent: with a Tripo key it can make a character; the dance tools appear once a dance is open, and the
     dance-only setting (the evaluation) offers nothing but the dance tools."""
-    from dancebuddy.agent.director import Director
-    from dancebuddy.tools.dance import SPECS as DANCE_SPECS
+    from dancebuddy.agent.session import AgentSession
+    from dancebuddy.agent.tools import build_tools
+    from dancebuddy.agent.tools.dance import SPECS as DANCE_SPECS
 
     monkeypatch.setenv("TRIPO_API_KEY", "k")
-    names = [s["function"]["name"] for s in Director().specs()]
+    names = build_tools(AgentSession()).names()
     assert "segment_character" in names and "import_character" in names and "perceive_dance" in names
     assert "submit_plan" not in names
-    assert "open_dance first" in json.loads(Director().call("submit_plan", {}))["error"]
-    assert Director(dance_only=True).specs() == []
+    assert "open_dance first" in json.loads(AgentSession(log=lambda *_: None).call("submit_plan", {}))["error"]
+    assert build_tools(AgentSession(dance_only=True)).names() == []
     assert set(DANCE_SPECS) >= {"submit_plan", "get_dance_score"}
