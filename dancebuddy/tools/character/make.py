@@ -1,6 +1,6 @@
 """Character tools of the DanceBuddy agent: make a new dance-ready character with Tripo, then import and rig it.
 
-The agent (planner/loop.py, through tools.py) calls these first when it is asked for a new character, then
+The agent (agent/director.py) calls these first when it is asked for a new character, then
 dances with the result. Tripo jobs take minutes and cost credits, so they are offered only in such a run.
 
   tools  create_character_from_text   Tripo text-to-model
@@ -19,11 +19,11 @@ import json
 import shutil
 from pathlib import Path
 
-from dancebuddy import llm
-from dancebuddy.characters.tripo import RIG_TYPES, Tripo, TripoError
-from dancebuddy.executor.render import blender_cmd, run
+from dancebuddy.agent import llm
+from dancebuddy.tools.character.tripo import RIG_TYPES, Tripo, TripoError
+from dancebuddy.tools.render import blender_cmd, run
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 ASSETS = ROOT / "assets"
 TEMPLATE_SPEC = ASSETS / "plush_motion_spec.json"
 

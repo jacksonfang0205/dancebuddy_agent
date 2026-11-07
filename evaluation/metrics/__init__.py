@@ -19,8 +19,8 @@ from pathlib import Path
 
 import numpy as np
 
-from dancebuddy.perception.beats import detect_hits, match, smooth
-from dancebuddy.perception.video import L_HIP, L_SH, L_WR, R_HIP, R_SH, R_WR
+from dancebuddy.tools.perception.beats import detect_hits, match, smooth
+from dancebuddy.tools.perception.video import L_HIP, L_SH, L_WR, R_HIP, R_SH, R_WR
 
 TOL_S = 0.1
 

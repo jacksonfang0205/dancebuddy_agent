@@ -1,17 +1,11 @@
-"""The agent's tools: what the LLM can call, and what each call does with the other components.
+"""Dance tools: what the agent uses to plan, once a dance and a character are open.
 
-  read      get_dance_score, get_dance_signals, get_leg_events  (perception)
-            get_character_spec                                   (knowledge)
-            get_plan_format                                      (actions)
-  act       submit_plan: the plan is carried out (executor) and checked in numbers (critics.numbers)
-  check     check_arm_geometry: the posed rig, no rendering     (critics.inspect)
-            look_at_frames: frames rendered next to the dancer, reviewed by a vision model (critics.inspect)
-  character create_character_from_text, create_character_from_image, segment_character, rig_humanoid (Tripo),
-            import_and_rig_soft (local)                          (characters.make)
-            offered only when the run is asked for a new character; the character the agent rigs becomes the one
-            it dances with
+  read      get_dance_score, get_dance_signals, get_leg_events, get_character_spec, get_plan_format
+  act       submit_plan: the plan (plan.py, moves.py) becomes motion curves (retarget.py, legs.py) and is checked
+            in numbers (checks.py)
+  check     check_arm_geometry, look_at_frames (inspect.py: the posed rig, and frames reviewed by a vision model)
 
-A Toolbox holds one run's state (its attempts and looks) and can switch tools off for ablations.
+A Toolbox holds one dance's state (its attempts and looks) and can switch tools off for ablations.
 """
 
 from __future__ import annotations
@@ -21,15 +15,15 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-from dancebuddy import llm
-from dancebuddy.actions import moves as moves_mod
-from dancebuddy.actions.plan import EMPHASIS_MOVES, KNOBS, LAYERS, PLAN_SCHEMA, default_plan
-from dancebuddy.characters.make import CHARACTER_SPECS, ROOT, CharacterTools
-from dancebuddy.critics.inspect import check_arm_geometry, look_at_frames, pick_frames
-from dancebuddy.critics.numbers import check_curves
-from dancebuddy.executor.retarget import retarget
-from dancebuddy.knowledge import character as character_kb
-from dancebuddy.perception.signals import compute_signals, unit_activity
+from dancebuddy.agent import llm
+from dancebuddy.tools.dance import moves as moves_mod
+from dancebuddy.tools.dance.plan import EMPHASIS_MOVES, KNOBS, LAYERS, PLAN_SCHEMA, default_plan
+from dancebuddy.tools.character.make import CHARACTER_SPECS, ROOT, CharacterTools
+from dancebuddy.tools.dance.inspect import check_arm_geometry, look_at_frames, pick_frames
+from dancebuddy.tools.dance.checks import check_curves
+from dancebuddy.tools.dance.retarget import retarget
+from dancebuddy.tools.character import spec as character_kb
+from dancebuddy.tools.perception.signals import compute_signals, unit_activity
 
 FRAMES_ARGS = {"type": "object", "properties": {"attempt": {"type": "integer"}, "unit_id": {"type": "integer"},
                                                  "frames": {"type": "array", "items": {"type": "integer"}}}}

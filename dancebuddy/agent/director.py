@@ -26,12 +26,12 @@ import sys
 import time
 from pathlib import Path
 
-from dancebuddy import llm
-from dancebuddy.characters.make import CHARACTER_SPECS, CharacterTools
-from dancebuddy.critics.numbers import rank
-from dancebuddy.knowledge import character as character_kb
-from dancebuddy.planner.loop import SYSTEM as DANCE_SYSTEM
-from dancebuddy.tools import SPECS as DANCE_SPECS, Toolbox
+from dancebuddy.agent import llm
+from dancebuddy.tools.character.make import CHARACTER_SPECS, CharacterTools
+from dancebuddy.tools.dance.checks import rank
+from dancebuddy.tools.character import spec as character_kb
+from dancebuddy.agent.prompts import CHAT_RULE, DANCE_PLANNING as DANCE_SYSTEM, DIRECTOR, GO_RULE
+from dancebuddy.tools.dance import SPECS as DANCE_SPECS, Toolbox
 
 ROOT = Path(__file__).resolve().parents[2]
 VIDEO_EXT = {".mp4", ".mov", ".m4v", ".avi", ".webm", ".mkv"}
@@ -42,49 +42,6 @@ BLOCKED = [r"\brm\s+-[a-z]*r", r"\brm\s+-[a-z]*f", r"\bsudo\b", r"\bgit\s+(push|
            r"\b(curl|wget|scp|ssh)\b", r"\b(pip|uv)\s+(install|add|remove)\b", r"\bbrew\b", r">\s*/dev/sd",
            r"\bmkfs\b", r"\bchmod\s+-R\b", r"\bkill(all)?\b", r"\.env\b"]
 
-DIRECTOR = """You are DanceBuddy's director. You take a request in plain words and carry out the whole pipeline
-yourself, stage by stage, on this computer, until there is a video of the character dancing next to the dancer.
-
-The project is at {root} (the working directory of every command). Python is `python` (the project's venv);
-`python -m dancebuddy --help` lists the commands. The stages:
- 1. Inputs. Find the dancer's video and the character. Use find_files (videos: .mp4/.mov; models: .glb). Paths the
-    user gives may be relative to the project or absolute. Characters already rigged are listed by list_characters
-    (prefix like assets/plush_soft); use one of those when the user names it or gives none (default plush_soft).
- 2. Perception: `python -m dancebuddy perceive VIDEO runs/NAME` (MediaPipe; about 1 s per second of video).
-    Pick a short NAME from the video. Skip it if runs/NAME/dance_score.json exists for the same video
-    (runs/NAME/source.txt holds the video path).
- 3. Character: a new GLB is imported and soft-rigged with import_character (about a minute). Then view_image its
-    front view and check the arms were found; if not, try `yaw` (90 or -90) once. The soft rig suits plush-like
-    bodies with blue arms; say so if the model is something else.
- 4. Plan: open_dance(run, character), then work as the dance planner below (read, plan, submit, check, look,
-    revise). The user's wishes come first: if they ask for something the dancer does not do (keep spinning, just
-    bounce, freeze at the end, stay still and only wave), use plan.layers (see get_plan_format) and make sure
-    checks.requests passes. Units the user took off the copy do not need to pass the copy checks.
-    Do not chase the accent check with big moves: a hit is better as a squash (size up to 1.0) than as a hop, use
-    a hop only where the dancer jumps, and keep arms at most 1.2. A smooth copy that misses an accent or two is
-    better than a jerky one that passes.
- 5. keep_attempt: write the attempt you choose to runs/NAME/<system>. Give each new version its own short system
-    name that says what it is (agent_spin, agent_bounce, ...), so earlier results are kept; use the same name only
-    when the user asks to replace one. The video is then runs/NAME/side_by_side_<system>[_preview].mp4.
- 6. Render and compose with run_shell:
-      python -m dancebuddy render runs/NAME --systems SYSTEM --char CHARACTER --preview      (fast, untextured)
-      python -m dancebuddy compose runs/NAME --systems SYSTEM --preview
-    or the final look without --preview (`--engine eevee` is quicker than the default cycles). Use the preview
-    unless the user asks for the final render. Then view_image one or two rendered frames
-    (runs/NAME/SYSTEM/preview/frame_0001.png ...) to confirm the character is there and moving.
- 7. Reply with what you did, where the video is, what the checks say and anything still wrong.
-
-Rules: use run_python for small calculations or for reading JSON; never delete or overwrite the user's files
-outside runs/ and assets/; do not repeat a stage that already succeeded; if a command fails, read its error,
-fix the cause and retry once, then report. {chat_rule}
-
------ the dance planner (stage 4) -----
-{dance}"""
-
-CHAT_RULE = ("This is a conversation: when a request is ambiguous in a way that changes the result (which video, "
-             "which character), ask_user once; otherwise decide and say what you chose. After a reply the user may "
-             "ask for changes: revise the same run (open_dance again only to switch run or character).")
-GO_RULE = "Nobody will answer questions in this run: decide yourself and say what you chose."
 
 WORK_SPECS = {
     "find_files": llm.tool_spec(
@@ -106,6 +63,19 @@ WORK_SPECS = {
     "view_image": llm.tool_spec(
         "view_image", "Look at an image file (a character view, a rendered frame). It is shown to you after the "
         "tool results.", {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}),
+    "perceive_dance": llm.tool_spec(
+        "perceive_dance", "Run perception on a dance video: MediaPipe pose, then beats, accents, move units and the "
+        "dancer's signals, written to runs/NAME (about 1 s per second of video). Returns what it found.",
+        {"type": "object", "properties": {"video": {"type": "string"},
+                                          "name": {"type": "string", "description": "short run name, e.g. dance2"},
+                                          "max_seconds": {"type": "number"}}, "required": ["video", "name"]}),
+    "render_video": llm.tool_spec(
+        "render_video", "Render a kept version (keep_attempt) in Blender and put it next to the dancer with FFmpeg. "
+        "preview (default true) = fast untextured; false = the final textured render (several minutes).",
+        {"type": "object", "properties": {"system": {"type": "string"},
+                                          "preview": {"type": "boolean"},
+                                          "engine": {"type": "string", "enum": ["eevee", "cycles"]}},
+         "required": ["system"]}),
     "list_characters": llm.tool_spec(
         "list_characters", "The rigged characters ready to dance (prefixes for open_dance and render --char), with "
         "their front view.", {"type": "object", "properties": {}}),
@@ -314,6 +284,39 @@ class Director:
             return {"answer": "nobody can answer in this run; decide yourself"}
         return {"answer": self.ask(a["question"])}
 
+    # ------------------------------------------------------------------ perception and rendering
+    def t_perceive_dance(self, a):
+        from dancebuddy.tools.perception.video import perceive
+        video = Path(a["video"]).expanduser()
+        video = video if video.is_absolute() else ROOT / video
+        if not video.exists():
+            return {"error": f"no video at {video}"}
+        name = re.sub(r"[^A-Za-z0-9_-]", "", a["name"]) or "dance"
+        run = ROOT / "runs" / name
+        src = run / "source.txt"
+        if (run / "dance_score.json").exists() and src.exists() and src.read_text().strip() != str(video.resolve()):
+            return {"error": f"runs/{name} already holds another video ({src.read_text().strip()}); pick another name"}
+        t0 = time.time()
+        score = perceive(video, run, a.get("max_seconds"))
+        src.write_text(str(video.resolve()))
+        return {"run": f"runs/{name}", "seconds": round(time.time() - t0, 1), "duration_s": score["duration_s"],
+                "beats": len(score["beats"]), "accents": len(score["accents"]), "units": len(score["units"])}
+
+    def t_render_video(self, a):
+        from dancebuddy.tools.render import compose, render_system
+        if self.run_dir is None:
+            return {"error": "open_dance and keep_attempt first"}
+        system = re.sub(r"[^A-Za-z0-9_-]", "", a["system"])
+        if not (self.run_dir / system / "curves.json").exists():
+            return {"error": f"no kept version {system}: keep_attempt first"}
+        preview = a.get("preview", True)
+        t0 = time.time()
+        frames = render_system(self.run_dir, system, self.char, a.get("engine", "eevee"), preview=preview)
+        out = compose(self.run_dir, [system], preview)
+        rel = lambda p: str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p)
+        return {"video": rel(out), "frames": rel(frames), "seconds": round(time.time() - t0, 1),
+                "first_frame": rel(frames / "frame_0001.png")}
+
     # ------------------------------------------------------------------ characters
     def t_list_characters(self, a):
         out = []
@@ -354,7 +357,7 @@ class Director:
 
     # ------------------------------------------------------------------ the dance
     def t_open_dance(self, a):
-        from dancebuddy.perception.video import load_keypoints
+        from dancebuddy.tools.perception.video import load_keypoints
         run = Path(a["run"]).expanduser()
         run = run if run.is_absolute() else ROOT / run
         if not (run / "dance_score.json").exists():
@@ -398,9 +401,7 @@ class Director:
         char = self.char.relative_to(ROOT) if self.char.is_relative_to(ROOT) else self.char
         run = self.run_dir.relative_to(ROOT) if self.run_dir.is_relative_to(ROOT) else self.run_dir
         return {"kept": att["attempt"], "to": str(rel), "passed": att["result"]["passed"],
-                "render": f"python -m dancebuddy render {run} --systems {system} --char {char} --preview",
-                "compose": f"python -m dancebuddy compose {run} --systems {system} --preview",
-                "video": f"{run}/side_by_side{'' if system == 'agent' else '_' + system}_preview.mp4"}
+                "next": f"render_video(system={system!r})"}
 
 
 def go(request: str, model: str | None = None, trace: Path | None = None) -> str:

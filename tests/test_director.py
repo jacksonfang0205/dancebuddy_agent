@@ -6,10 +6,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from dancebuddy.actions.plan import default_plan
-from dancebuddy.critics.numbers import check_curves
-from dancebuddy.executor.retarget import retarget
-from dancebuddy.perception.video import build_dance_score, load_keypoints
+from dancebuddy.tools.dance.plan import default_plan
+from dancebuddy.tools.dance.checks import check_curves
+from dancebuddy.tools.dance.retarget import retarget
+from dancebuddy.tools.perception.video import build_dance_score, load_keypoints
 from evaluation.data.synth import make
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -49,7 +49,7 @@ def test_freeze_holds_the_pose(synth):
 
 
 def test_shell_refuses_destructive_commands():
-    from dancebuddy.planner.director import Director
+    from dancebuddy.agent.director import Director
     d = Director()
     assert "error" in d.t_run_shell({"command": "rm -rf runs"})
     assert "error" in d.t_run_shell({"command": "git push origin main"})

@@ -39,5 +39,5 @@ def card(char: Path) -> dict:
     p = card_path(char)
     if p.exists():
         return json.loads(p.read_text())
-    from dancebuddy.knowledge.card import build_card
+    from dancebuddy.tools.character.card import build_card
     return build_card(Path(str(char) + "_rig.json"), p, use_vlm=False)

@@ -24,7 +24,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 CACHE = Path(os.environ.get("DANCEBUDDY_CACHE", ROOT / ".cache" / "llm"))
 DEFAULT_MODEL = os.environ.get("DANCEBUDDY_MODEL", "openai/gpt-6-sol")
 OPENROUTER_URL = "https://openrouter.ai/api/v1"

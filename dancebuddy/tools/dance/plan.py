@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from dancebuddy.perception.beats import smooth
+from dancebuddy.tools.perception.beats import smooth
 
 KNOBS = {  # name: (default, min, max, meaning)
     "body": (1.0, 0.0, 1.6, "x the dancer's torso turn / side tilt / lean (still softly limited by the character)"),

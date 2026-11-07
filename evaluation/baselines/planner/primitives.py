@@ -29,8 +29,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from dancebuddy.perception.beats import smooth
-from dancebuddy.perception.signals import SIGNAL_NAMES, normalized
+from dancebuddy.tools.perception.beats import smooth
+from dancebuddy.tools.perception.signals import SIGNAL_NAMES, normalized
 
 # primitive name -> (channel on each bone, family, units, sensible amplitude range)
 PRIMITIVES: dict[str, dict] = {

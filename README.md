@@ -60,15 +60,17 @@ tools are:
 | Tool | What it does |
 |---|---|
 | `find_files`, `list_characters` | find dance videos and `.glb` models; list the plush characters that are already rigged |
-| `run_shell`, `run_python` | run commands in the project, e.g. `python -m dancebuddy perceive` (MediaPipe pose -> beats, accents, move units), `render`, `compose` |
+| `perceive_dance` | MediaPipe pose on the video, then beats, accents, move units and the dancer's signals |
 | `import_character` | import a `.glb` and build the soft rig (works best on plush-like bodies with blue arms) |
 | `open_dance` | load a perceived dance and a character, which unlocks the dance tools below |
 | `get_dance_score`, `get_dance_signals`, `get_leg_events`, `get_character_spec`, `get_plan_format` | read the dance and the plush's body |
 | `submit_plan` | apply a plan (per move unit: body, arms, groove, head and travel; leg moves; accent hits; extra motions `spin`, `bounce`, `sway`, `freeze`, `still`) and get the checks back: accents, completeness, in frame, range, and whether each requested motion happened |
 | `check_arm_geometry` | find arms folding or sinking into the body, without rendering |
 | `look_at_frames` | render chosen frames next to the dancer and get a vision model's review |
-| `keep_attempt` | save the chosen plan as a version for rendering |
+| `keep_attempt` | save the chosen plan as a version |
+| `render_video` | render a version in Blender and put it next to the dancer (preview or final) |
 | `view_image` | look at a character view or a rendered frame |
+| `run_shell`, `run_python` | anything the other tools don't cover: inspect files, compute something, run a project command |
 | `ask_user` | ask you a question (chat only) |
 
 With `TRIPO_API_KEY` in `.env` it also gets `create_character_from_text`, `create_character_from_image` and
@@ -93,13 +95,13 @@ List the evaluation clips (from the Drive folder above) in `evaluation/data/danc
 
 ```
 dancebuddy/
-  planner/      director.py (the agent: go / chat), loop.py (the dance planning instructions)
-  tools.py      dance tools: read the dance, submit a plan, check, look
-  perception/   MediaPipe pose -> dance score
-  actions/      the plan: knobs, accents, own moves, extra motions
-  executor/     plan -> motion curves, Blender rendering, side-by-side video
-  critics/      numeric checks, arm geometry, vision review
-  characters/   character import and Tripo3D tools
-  blender/      scripts run inside Blender
-evaluation/     baselines, data, metrics
+  agent/          the agent: director.py (the tool loop: go / chat), prompts.py, llm.py (OpenRouter),
+                  dance_only.py (the agent with only the dance tools, used by the evaluation)
+  tools/          what the agent calls
+    perception/   perceive_dance: MediaPipe pose -> dance score
+    character/    import_character, Tripo tools, the character's rig and motion spec
+    dance/        open_dance and the dance tools: the plan, plan -> motion, checks, arm geometry, vision review
+    render.py     render_video: Blender render and side-by-side video
+  blender/        scripts the tools run inside Blender
+evaluation/       baselines, data, metrics
 ```

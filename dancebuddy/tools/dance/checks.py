@@ -14,7 +14,7 @@ from __future__ import annotations
 import numpy as np
 from scipy.spatial.transform import Rotation as Rot
 
-from dancebuddy.perception.beats import detect_hits, match, smooth
+from dancebuddy.tools.perception.beats import detect_hits, match, smooth
 
 # frame_margin: how far (x body height) the top of the body may drift sideways before the hair leaves the picture:
 # the camera (rig_soft.py: 45 mm lens at 3 body heights, portrait) sees +-0.68 heights, the hair is +-0.35 wide

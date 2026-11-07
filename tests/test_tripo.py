@@ -5,8 +5,8 @@ import json
 import httpx
 import pytest
 
-from dancebuddy.characters.make import CHARACTER_SPECS, CharacterTools
-from dancebuddy.characters.tripo import Tripo, TripoError
+from dancebuddy.tools.character.make import CHARACTER_SPECS, CharacterTools
+from dancebuddy.tools.character.tripo import Tripo, TripoError
 
 TASK = "123e4567-e89b-42d3-a456-426614174000"
 
@@ -79,9 +79,9 @@ def test_tools_are_registered():
 def test_one_agent_makes_the_character_then_dances(tmp_path, monkeypatch):
     """With --new-character the dance agent's toolbox offers the character tools too; dance tools wait for the
     character, and a successful import_and_rig_soft makes it the character the agent dances with."""
-    from dancebuddy import tools
+    from dancebuddy.tools import dance as tools
     from evaluation.data.synth import make
-    from dancebuddy.perception.video import build_dance_score, load_keypoints
+    from dancebuddy.tools.perception.video import build_dance_score, load_keypoints
 
     d = make(tmp_path / "synth")
     kp = load_keypoints(d / "keypoints.npz")

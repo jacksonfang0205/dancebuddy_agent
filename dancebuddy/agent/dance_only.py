@@ -1,56 +1,17 @@
-"""The planner: the LLM at the centre of the DanceBuddy agent, and the loop it runs in.
-
-The model reads the dance and the character through tools (dancebuddy/tools.py), submits plans (actions/), which
-are carried out (executor/) and checked (critics/), looks where it chooses, and revises. The best attempt is kept.
-"""
+"""The agent with only the dance tools, on a dance that is already perceived and a character that is already
+rigged. The evaluation runs it this way (and with tools switched off for the ablations), so every system starts
+from the same inputs. The full agent (director.py) uses the same dance tools after it has found and prepared the
+inputs itself."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from dancebuddy import llm
-from dancebuddy.critics.numbers import rank
-from dancebuddy.tools import Toolbox
-
-SYSTEM = """You are DanceBuddy, an animation agent. A non-humanoid plush character copies a human dancer. A
-deterministic copy already exists: the character's arms follow the dancer's arms, its body follows the dancer's
-torso, every leg move is translated (the character has no legs) and the body grooves on the beat. You decide how
-the dancer's moves are SHOWN on this body, unit by unit, by setting a plan.
-
-How to work:
-0. Only if you are asked for a NEW character: make it first with the character tools. Create it from what you
-   were given (create_character_from_text / create_character_from_image); if it is a plush, blob or other soft body,
-   segment_character it, then import_and_rig_soft the segmented GLB and check that its arms were found (else try
-   `yaw` or another segmentation granularity). A humanoid or an animal with real legs can only be rig_humanoid'ed:
-   say that the dance needs a soft-rigged body and stop. Each Tripo call takes minutes and costs credits: never
-   repeat one that succeeded. The character you rig is the one you then dance with.
-1. Read the dance (get_dance_score, get_dance_signals, get_leg_events) and the character (get_character_spec).
-   Note what each unit is about: arms, footwork, head and hair flips, turns.
-2. Read the plan format (get_plan_format). Every knob defaults to the plain copy.
-3. For each unit decide what matters most and how this body can show it, following the character's spec:
-   - moves the body can copy: keep them, exaggerate a little if the unit is about them (a small round character
-     needs bigger moves to read as strongly as a person)
-   - moves it cannot copy (head flips: it has no neck; footwork: it has no legs): move them onto parts it has
-     (head -> upper body via the head knob, or emphasis nods/tilts; strong steps -> bigger leg translation)
-   - accents: every accent should show as a clear hit; add an emphasis move where the copy has none
-   - keep the character inside the picture and within its range
-4. submit_plan. It returns checks per unit: missed accents, completeness (does the character move about
-   as much as the dancer, relatively), frames out of the picture, range. Fix what the report points at and keep
-   what works. Do not change units that pass unless you have a reason.
-5. The numbers do not show what the character looks like. Check the latest attempt where it matters, cheapest
-   first, and decide yourself where to look:
-   - check_arm_geometry (a few seconds): arms folding or sinking into the body, on chosen frames or a unit
-   - look_at_frames (about half a minute; limited number of looks): renders chosen frames small next to the
-     dancer and returns a reviewer's notes per frame: does the character show the move, what looks wrong, a fix.
-     Look at units with big arm moves, turns or accents, and at units the checks flagged.
-   Turn what you learn into changes and submit again. Knobs scale whole units; for a particular moment write a
-   move in the plan's `moves` (code lines, see get_plan_format): e.g. arm("both", 3.5, pose="overhead") when the
-   hands should go above the head, arm("both", 0.7, pose="hands_together_chest"), body(2.7, tilt=-12). A move
-   takes over from the copy around its time and blends back, so write moves only where the copy does not read,
-   time them on the dancer's moment (seconds), and look again to confirm they worked.
-6. When the checks pass and what you looked at is fine, or you are out of attempts, reply with a short summary of
-   your decisions, what you checked and what is still wrong, and stop."""
+from dancebuddy.agent import llm
+from dancebuddy.tools.dance.checks import rank
+from dancebuddy.agent.prompts import DANCE_PLANNING as SYSTEM
+from dancebuddy.tools.dance import Toolbox
 
 
 def run_agent(kp: dict, score: dict, rig: dict, spec: dict, out_dir: str | Path, max_attempts: int = 4,

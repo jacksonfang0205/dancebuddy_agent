@@ -1,8 +1,6 @@
-"""DanceBuddy: an agent that makes a non-humanoid character dance along with a human dancer.
+"""DanceBuddy: an agent that makes a plush character dance along with a human dancer.
 
-  perception/  what it observes          knowledge/  what it knows about the character
-  planner/     the LLM and its loop      actions/    what it can decide (plans, its own moves)
-  executor/    carries the actions out   critics/    how it checks the result
-  tools.py     the tools the LLM calls   llm.py      model access
-  blender/     scripts run inside Blender (posing, rendering, mesh checks, rigging)
+  agent/     the LLM in a tool-calling loop, its instructions and model access
+  tools/     what it can call: workspace, perception, character, dance planning and checks, rendering
+  blender/   scripts the tools run inside Blender (rigging, posing, rendering, mesh checks)
 """

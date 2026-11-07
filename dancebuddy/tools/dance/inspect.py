@@ -1,4 +1,4 @@
-"""Ways for the agent to see what a plan made, beyond the numbers (critics/numbers.py), cheapest first:
+"""Ways for the agent to see what a plan made, beyond the numbers (checks.py), cheapest first:
 
   check_arm_geometry  poses the rig (no rendering, a few seconds per dozen frames): where an arm folds (its tightest
                       bend is tighter than the arm is thick) or sinks into the body, per move unit
@@ -20,9 +20,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from dancebuddy import llm
+from dancebuddy.agent import llm
 
-ROOT = Path(__file__).resolve().parents[2]  # the repository
+ROOT = Path(__file__).resolve().parents[3]  # the repository
 CELL = (180, 320)  # width, height of one picture in the contact sheet
 
 

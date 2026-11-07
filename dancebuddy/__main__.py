@@ -31,8 +31,8 @@ import argparse
 import json
 from pathlib import Path
 
-from dancebuddy.executor.render import blender_cmd, compose, render_system, run
-from dancebuddy.knowledge import character
+from dancebuddy.tools.render import blender_cmd, compose, render_system, run
+from dancebuddy.tools.character import spec as character
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CHAR = ROOT / "assets" / "plush_soft"
@@ -62,7 +62,7 @@ def cmd_check(a):
     line(shutil.which("ffmpeg"), "ffmpeg (for side-by-side videos)", "install ffmpeg (brew / apt / winget)")
     line(Path(str(DEFAULT_CHAR) + ".blend").exists(), f"character {DEFAULT_CHAR.relative_to(ROOT)}",
          "the .blend files are in the repository; check that the clone is complete (git lfs is not used)")
-    from dancebuddy import llm  # loads .env
+    from dancebuddy.agent import llm  # loads .env
     key = os.environ.get("OPENROUTER_API_KEY", "")
     line(key and "..." not in key, "OPENROUTER_API_KEY (needed by the agent and the LLM baselines only)",
          "cp .env.example .env and put your key in it (https://openrouter.ai/keys)")
@@ -78,7 +78,7 @@ def cmd_check(a):
 # ------------------------------------------------------------------ per dance
 
 def cmd_perceive(a):
-    from dancebuddy.perception.video import perceive
+    from dancebuddy.tools.perception.video import perceive
     Path(a.run).mkdir(parents=True, exist_ok=True)
     perceive(a.video, a.run, a.max_seconds)
     if Path(a.video).exists():
@@ -86,8 +86,8 @@ def cmd_perceive(a):
 
 
 def cmd_agent(a):
-    from dancebuddy.perception.video import load_keypoints
-    from dancebuddy.planner.loop import run_agent
+    from dancebuddy.tools.perception.video import load_keypoints
+    from dancebuddy.agent.dance_only import run_agent
     run_dir = Path(a.run)
     score = json.loads((run_dir / "dance_score.json").read_text())
     source = (run_dir / "source.txt").read_text().strip() if (run_dir / "source.txt").exists() else score.get("source")
@@ -115,10 +115,10 @@ def cmd_agent(a):
 
 def cmd_replay(a):
     """Carry out a saved plan (e.g. an agent's plan.json) again, without the LLM, and check it."""
-    from dancebuddy.critics.numbers import check_curves
-    from dancebuddy.executor.retarget import retarget
-    from dancebuddy.perception.signals import compute_signals
-    from dancebuddy.perception.video import load_keypoints
+    from dancebuddy.tools.dance.checks import check_curves
+    from dancebuddy.tools.dance.retarget import retarget
+    from dancebuddy.tools.perception.signals import compute_signals
+    from dancebuddy.tools.perception.video import load_keypoints
     run_dir = Path(a.run)
     score = json.loads((run_dir / "dance_score.json").read_text())
     kp, rig = load_keypoints(run_dir / "keypoints.npz"), character.rig(a.char)
@@ -149,12 +149,12 @@ def cmd_demo(a):
 
 
 def cmd_go(a):
-    from dancebuddy.planner.director import go
+    from dancebuddy.agent.director import go
     go(" ".join(a.request), model=a.model)
 
 
 def cmd_chat(a):
-    from dancebuddy.planner.director import chat
+    from dancebuddy.agent.director import chat
     chat(model=a.model, first=" ".join(a.request) or None)
 
 
@@ -176,15 +176,15 @@ def cmd_char_capsule(a):
 
 
 def cmd_char_puppet(a):
-    from dancebuddy.characters.puppet import cut_out
-    from dancebuddy.knowledge.card import build_card
+    from dancebuddy.tools.character.puppet import cut_out
+    from dancebuddy.tools.character.card import build_card
     cut_out(a.image, a.out)
     run(blender_cmd("make_puppet.py", ["--out", str(a.out), "--engine", a.engine]))
     build_card(Path(str(a.out) + "_rig.json"), character.card_path(Path(a.out)), use_vlm=not a.no_vlm)
 
 
 def cmd_char_card(a):
-    from dancebuddy.knowledge.card import build_card
+    from dancebuddy.tools.character.card import build_card
     card = build_card(Path(str(a.char) + "_rig.json"), character.card_path(Path(a.char)), use_vlm=not a.no_vlm)
     print(json.dumps(card.get("description"), indent=1))
 

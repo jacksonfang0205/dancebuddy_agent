@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from dancebuddy.knowledge import character
+from dancebuddy.tools.character import spec as character
 
 LLM_SYSTEMS = {"planner", "agent", "agent_no_looks", "agent_no_moves", "agent_numbers"}
 ABLATIONS = {"agent": {}, "agent_no_looks": {"use_looks": False}, "agent_no_moves": {"use_moves": False},
@@ -24,7 +24,7 @@ ABLATIONS = {"agent": {}, "agent_no_looks": {"use_looks": False}, "agent_no_move
 
 
 def _load(run_dir: Path):
-    from dancebuddy.perception.video import load_keypoints
+    from dancebuddy.tools.perception.video import load_keypoints
     return load_keypoints(run_dir / "keypoints.npz"), json.loads((run_dir / "dance_score.json").read_text())
 
 
@@ -35,7 +35,7 @@ def pose_copy(run_dir: Path, char: Path, out: Path, **_) -> None:
 
 
 def plain_copy(run_dir: Path, char: Path, out: Path, **_) -> None:
-    from dancebuddy.executor.retarget import retarget
+    from dancebuddy.tools.dance.retarget import retarget
     kp, score = _load(run_dir)
     (out / "curves.json").write_text(json.dumps(retarget(kp, character.rig(char), beats=score["beats"])))
 
@@ -48,7 +48,7 @@ def planner(run_dir: Path, char: Path, out: Path, attempts: int = 4, model: str 
 
 def agent(run_dir: Path, char: Path, out: Path, attempts: int = 4, looks: int = 4, model: str | None = None,
           system: str = "agent", **_) -> None:
-    from dancebuddy.planner.loop import run_agent
+    from dancebuddy.agent.dance_only import run_agent
     kp, score = _load(run_dir)
     src = (run_dir / "source.txt").read_text().strip() if (run_dir / "source.txt").exists() else score.get("source")
     run_agent(kp, score, character.rig(char), character.spec(char), out, max_attempts=attempts, model=model,

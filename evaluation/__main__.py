@@ -39,7 +39,7 @@ def run_dir(runs: Path, d: dict) -> Path:
 
 
 def cmd_prepare(a):
-    from dancebuddy.perception.video import perceive
+    from dancebuddy.tools.perception.video import perceive
     from evaluation.data.synth import make
     for d in dances(a.dance):
         rd = run_dir(a.runs, d)
@@ -74,12 +74,12 @@ def cmd_run(a):
 
 
 def _blender(script: str, args: list[str]) -> None:
-    from dancebuddy.executor.render import blender_cmd
+    from dancebuddy.tools.render import blender_cmd
     subprocess.run(blender_cmd(script, args), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def cmd_metrics(a):
-    from dancebuddy.perception.video import load_keypoints
+    from dancebuddy.tools.perception.video import load_keypoints
     from evaluation import metrics as M
     char = char_prefix(a.char)
     rows = []
@@ -126,7 +126,7 @@ def cmd_metrics(a):
 
 
 def cmd_render(a):
-    from dancebuddy.executor.render import compose, render_system
+    from dancebuddy.tools.render import compose, render_system
     rd = a.runs / a.dance
     for s in a.systems:
         render_system(rd, s, char_prefix(a.char), a.engine, preview=a.preview)
@@ -137,7 +137,7 @@ def cmd_apply(a):
     """The planner baseline with a hand-written plan (no LLM): compile, check."""
     from evaluation.baselines.planner.checks import run_checks
     from evaluation.baselines.planner.primitives import compile_plan
-    from dancebuddy.knowledge import character
+    from dancebuddy.tools.character import spec as character
     rd = a.runs / a.dance
     score, card = json.loads((rd / "dance_score.json").read_text()), character.card(char_prefix(a.char))
     plan = json.loads(Path(a.plan).read_text())

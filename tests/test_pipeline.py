@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from dancebuddy import llm
-from dancebuddy.perception.video import build_dance_score, load_keypoints
+from dancebuddy.agent import llm
+from dancebuddy.tools.perception.video import build_dance_score, load_keypoints
 from evaluation.baselines.planner import agent
 from evaluation.baselines.planner.checks import metrics, run_checks
 from evaluation.baselines.planner.primitives import compile_plan
@@ -71,7 +71,7 @@ def test_agent_revises_after_failed_check(synth, tmp_path, monkeypatch):
 
 
 def test_cut_out_finds_the_character_on_a_plain_background(tmp_path):
-    from dancebuddy.characters.puppet import cut_out
+    from dancebuddy.tools.character.puppet import cut_out
     info = cut_out(ROOT / "assets" / "sample_character.png", tmp_path / "char")
     filled = sum(map(sum, info["grid"])) / (info["rows"] * info["cols"])
     assert 0.5 < filled < 0.95 and info["height_px"] > info["width_px"]
@@ -79,7 +79,7 @@ def test_cut_out_finds_the_character_on_a_plain_background(tmp_path):
 
 def test_follow_tracks_the_dancer_signal(synth):
     import numpy as np
-    from dancebuddy.perception.signals import normalized
+    from dancebuddy.tools.perception.signals import normalized
 
     _, score = synth
     unit = score["units"][2]  # torso-twist section
@@ -170,8 +170,8 @@ def test_copy_raises_the_arm_the_dancer_raises(synth):
     import numpy as np
     from scipy.spatial.transform import Rotation as Rot
 
-    from dancebuddy.perception.video import L_EL, L_SH, L_WR
-    from dancebuddy.executor.retarget import retarget
+    from dancebuddy.tools.perception.video import L_EL, L_SH, L_WR
+    from dancebuddy.tools.dance.retarget import retarget
 
     kp, _ = synth
     kp = {**kp, "world": kp["world"].copy(), "image": kp["image"].copy()}
@@ -204,8 +204,8 @@ def test_copy_raises_the_arm_the_dancer_raises(synth):
 
 def test_legs_become_hops_leans_and_squash(synth):
     import numpy as np
-    from dancebuddy.executor.legs import translate
-    from dancebuddy.perception.signals import compute_signals
+    from dancebuddy.tools.dance.legs import translate
+    from dancebuddy.tools.perception.signals import compute_signals
 
     kp, _ = synth
     n = len(kp["world"])
@@ -223,8 +223,8 @@ def test_legs_become_hops_leans_and_squash(synth):
 
 def test_default_copy_plan_is_the_plain_copy(synth):
     import numpy as np
-    from dancebuddy.actions.plan import default_plan
-    from dancebuddy.executor.retarget import retarget
+    from dancebuddy.tools.dance.plan import default_plan
+    from dancebuddy.tools.dance.retarget import retarget
 
     kp, score = synth
     rig = json.loads((ROOT / "assets" / "plush_soft_rig.json").read_text())
@@ -234,8 +234,8 @@ def test_default_copy_plan_is_the_plain_copy(synth):
 
 
 def test_agent_revises_and_keeps_the_best(synth, tmp_path, monkeypatch):
-    from dancebuddy.planner.loop import run_agent
-    from dancebuddy.actions.plan import default_plan
+    from dancebuddy.agent.dance_only import run_agent
+    from dancebuddy.tools.dance.plan import default_plan
 
     kp, score = synth
     rig = json.loads((ROOT / "assets" / "plush_soft_rig.json").read_text())
@@ -268,7 +268,7 @@ def test_agent_revises_and_keeps_the_best(synth, tmp_path, monkeypatch):
 def test_hands_ball_up_for_raised_bent_arms():
     """Motion spec: fists for raised, bent arms; open hands when the arm hangs, reaches out or lies across."""
     import numpy as np
-    from dancebuddy.executor.retarget import elbow_amount, fist_amount
+    from dancebuddy.tools.dance.retarget import elbow_amount, fist_amount
     out, up, down, across = map(np.array, ((1.0, 0, 0), (0, 0, 1.0), (0, 0, -1.0), (-1.0, 0, 0)))
     assert fist_amount(out, up) > 0.95                 # upper arm out, forearm up: a soft elbow and a fist
     assert elbow_amount(out, up) == 1.0
@@ -283,7 +283,7 @@ def test_soft_arm_is_a_round_arc_that_keeps_its_length():
     """An arm bends as one circular arc (no crease) and its arc keeps the arm's length."""
     import numpy as np
     from scipy.spatial.transform import Rotation as Rot
-    from dancebuddy.executor.retarget import arm_centre_line, arm_pose
+    from dancebuddy.tools.dance.retarget import arm_centre_line, arm_pose
     M = {"arm_L_1": np.eye(3), "arm_L_1__head": [0.0, 0.0, 0.0], "arm_L_1__tail": [0.0, 0.5, 0.0]}
     info = {}
     q, curve, chord = arm_pose(M, "arm_L_1", np.array([1.0, 0, 0]), np.array([0, 0, 1.0]), 1, info=info)
@@ -299,7 +299,7 @@ def test_soft_arm_is_a_round_arc_that_keeps_its_length():
 
 
 def test_inspect_picks_a_units_key_frames():
-    from dancebuddy.critics.inspect import pick_frames
+    from dancebuddy.tools.dance.inspect import pick_frames
     score = {"units": [{"id": 0, "start": 0, "end": 40, "accents": [10], "beats": [5, 15, 25, 35]},
                        {"id": 1, "start": 41, "end": 90, "accents": [60, 70], "beats": [45, 55, 65, 75, 85]}]}
     f = pick_frames(score, 91, unit_id=1)
@@ -309,7 +309,7 @@ def test_inspect_picks_a_units_key_frames():
 
 def test_moves_parse_safely_and_take_over_the_arm():
     import numpy as np
-    from dancebuddy.actions.moves import MoveError, curves, parse
+    from dancebuddy.tools.dance.moves import MoveError, curves, parse
     for bad in ("import os", "open('x')", "arm('L', 1.0, raise_=__import__('os'))", "arm('L', 1.0, pose='fly')",
                 "arm('X', 1.0, raise_=90)"):
         with pytest.raises(MoveError):
