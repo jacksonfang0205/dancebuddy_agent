@@ -121,8 +121,11 @@ def _tail(text: str, limit: int = 4000) -> str:
 
 
 class Director:
-    def __init__(self, model: str | None = None, chat: bool = False, ask=None, log=print, max_turns: int = 60):
+    def __init__(self, model: str | None = None, chat: bool = False, ask=None, log=print, max_turns: int = 60,
+                 dance_only: bool = False):
+        """dance_only: only the dance tools, on a dance set up by plan_dance (the evaluation setting)."""
         self.model, self.chat, self.ask, self.log, self.max_turns = model, chat, ask, log, max_turns
+        self.dance_only = dance_only
         self.box: Toolbox | None = None
         self.run_dir: Path | None = None
         self.char: Path | None = None
@@ -131,11 +134,14 @@ class Director:
         self.cost, self.calls = 0.0, 0
         self.pending_images: list[str] = []
         self.commands: list[dict] = []
-        system = DIRECTOR.format(root=ROOT, chat_rule=CHAT_RULE if chat else GO_RULE, dance=DANCE_SYSTEM)
+        system = (DANCE_SYSTEM if dance_only else
+                  DIRECTOR.format(root=ROOT, chat_rule=CHAT_RULE if chat else GO_RULE, dance=DANCE_SYSTEM))
         self.messages: list[dict] = [{"role": "system", "content": system}]
 
     # ------------------------------------------------------------------ the loop
     def specs(self) -> list[dict]:
+        if self.dance_only:
+            return self.box.specs() if self.box is not None else []
         out = list(WORK_SPECS.values())
         if self.chat:
             out.append(ASK_SPEC)
@@ -147,13 +153,13 @@ class Director:
                 s["function"]["parameters"].setdefault("required", []).append("name")
                 out.append(s)
         if self.box is not None:
-            out += [s for s in self.box.specs() if s["function"]["name"] not in CHARACTER_SPECS]
+            out += self.box.specs()
         return out
 
     def send(self, text: str) -> str:
         """One user request: the agent works until it replies. Returns the reply."""
         self.messages.append({"role": "user", "content": text})
-        if self.box is not None:  # a fresh budget of plans and looks for each request
+        if self.box is not None and not self.dance_only:  # a fresh budget of plans and looks for each request
             self.box.max_attempts = len(self.box.attempts) + 6
             self.box.max_looks = len(self.box.looks) + 4
         for _ in range(self.max_turns):
@@ -188,11 +194,13 @@ class Director:
         self.log(f"> {name} {json.dumps(args)[:200]}")
         try:
             fn = getattr(self, "t_" + name, None)
-            if fn is not None:
+            if self.dance_only and name not in {x["function"]["name"] for x in self.specs()}:
+                res = {"error": f"unknown tool {name}"}
+            elif fn is not None:
                 res = fn(args)
             elif name in TRIPO_TOOLS and self.tripo:
                 res = json.loads(self._maker(args.pop("name")).call(name, args))
-            elif self.box is not None:
+            elif self.box is not None and name in {x["function"]["name"] for x in self.box.specs()}:
                 res = json.loads(self.box.call(name, args))
             else:
                 res = {"error": f"{name} needs an open dance: run open_dance first" if name in DANCE_SPECS
@@ -402,6 +410,40 @@ class Director:
         run = self.run_dir.relative_to(ROOT) if self.run_dir.is_relative_to(ROOT) else self.run_dir
         return {"kept": att["attempt"], "to": str(rel), "passed": att["result"]["passed"],
                 "next": f"render_video(system={system!r})"}
+
+
+def plan_dance(kp: dict, score: dict, rig: dict, spec: dict, out_dir: str | Path, max_attempts: int = 4,
+               max_turns: int = 24, model: str | None = None, blend: str | None = None, source: str | None = None,
+               max_looks: int = 4, use_looks: bool = True, use_geometry: bool = True, use_moves: bool = True) -> dict:
+    """The same agent with only the dance tools, on a dance that is already perceived and a character that is
+    already rigged: the evaluation's setting, so every system starts from the same inputs. use_looks /
+    use_geometry / use_moves switch a tool off (ablations). Writes trace.json, summary.json, every attempt and the
+    best plan / curves / checks to out_dir."""
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    d = Director(model=model, max_turns=max_turns, dance_only=True, log=lambda *_: None)
+    d.box = Toolbox(kp, score, rig, spec, out, blend=blend, source=source, model=model, max_attempts=max_attempts,
+                    max_looks=max_looks, use_looks=use_looks, use_geometry=use_geometry, use_moves=use_moves)
+    missing = d.box.missing()
+    note = f" In this run you do not have {', '.join(missing)}; skip those steps." if missing else ""
+    reply = d.send("Make the character dance this dance. Start by reading the dance and the character." + note)
+    (out / "trace.json").write_text(json.dumps(d.messages, indent=1))
+    attempts, looks = d.box.attempts, d.box.looks
+    if not attempts:
+        raise RuntimeError("the agent never submitted a valid plan; see trace.json")
+    best = max(attempts, key=lambda x: rank(x["result"]))
+    for f in ("plan.json", "curves.json", "checks.json"):
+        (out / f).write_text((Path(best["dir"]) / f).read_text())
+    summary = {"attempts": len(attempts), "best_attempt": best["attempt"], "passed": best["result"]["passed"],
+               "history": [{"attempt": x["attempt"], "passed": x["result"]["passed"],
+                            "problems": sum(len(u["problems"]) for u in x["result"]["units"])} for x in attempts],
+               "looks": [{"attempt": x["attempt"], "frames": x["frames"], "picture": x["picture"]} for x in looks],
+               "final_message": reply, "model": model or llm.DEFAULT_MODEL, "capabilities": d.box.use,
+               "llm_calls": d.calls + len(looks),
+               "cost_usd": round(d.cost + sum(x.get("cost_usd", 0.0) for x in looks), 4)}
+    (out / "summary.json").write_text(json.dumps(summary, indent=1))
+    print(f"agent: {len(attempts)} attempt(s), best = {best['attempt']}, passed = {best['result']['passed']}")
+    return summary
 
 
 def go(request: str, model: str | None = None, trace: Path | None = None) -> str:

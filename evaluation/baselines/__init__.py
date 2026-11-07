@@ -5,7 +5,7 @@
   plain_copy       no LLM: the DanceBuddy copy (perception, leg translation, retarget) with no plan
   planner          LLM, no copying: plans primitive moves per unit from a description of the body (the first
                    prototype's agent), compiled to curves, checked and revised
-  agent            the DanceBuddy agent with every tool
+  agent            the DanceBuddy agent (agent/director.py) with every dance tool, on the prepared dance
   agent_no_looks   ablation: no looking at rendered frames
   agent_no_moves   ablation: knobs only, no own moves
   agent_numbers    ablation: numbers only (no looks, no geometry check, no own moves)
@@ -48,12 +48,12 @@ def planner(run_dir: Path, char: Path, out: Path, attempts: int = 4, model: str 
 
 def agent(run_dir: Path, char: Path, out: Path, attempts: int = 4, looks: int = 4, model: str | None = None,
           system: str = "agent", **_) -> None:
-    from dancebuddy.agent.dance_only import run_agent
+    from dancebuddy.agent.director import plan_dance
     kp, score = _load(run_dir)
     src = (run_dir / "source.txt").read_text().strip() if (run_dir / "source.txt").exists() else score.get("source")
-    run_agent(kp, score, character.rig(char), character.spec(char), out, max_attempts=attempts, model=model,
-              blend=character.blend(char), source=src if src and Path(src).exists() else None, max_looks=looks,
-              **ABLATIONS[system])
+    plan_dance(kp, score, character.rig(char), character.spec(char), out, max_attempts=attempts, model=model,
+               blend=character.blend(char), source=src if src and Path(src).exists() else None, max_looks=looks,
+               **ABLATIONS[system])
 
 
 SYSTEMS = {"pose_copy": pose_copy, "plain_copy": plain_copy, "planner": planner,

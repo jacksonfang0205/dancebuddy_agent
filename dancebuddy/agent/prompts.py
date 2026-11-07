@@ -13,6 +13,9 @@ run_shell and run_python are there for anything the other tools do not cover. Th
  3. Character: a new GLB is imported and soft-rigged with import_character (about a minute). Then view_image its
     front view and check the arms were found; if not, try `yaw` (90 or -90) once. The soft rig suits plush-like
     bodies with blue arms; say so if the model is something else.
+    No model yet and the Tripo tools are offered: make one (create_character_from_text / _from_image), then
+    segment_character it so the arms come loose from the body, then import_character the segmented GLB. Each Tripo
+    call takes minutes and costs credits: never repeat one that succeeded.
  4. Plan: open_dance(run, character), then work as the dance planner below (read, plan, submit, check, look,
     revise). The user's wishes come first: if they ask for something the dancer does not do (keep spinning, just
     bounce, freeze at the end, stay still and only wave), use plan.layers (see get_plan_format) and make sure
@@ -45,12 +48,6 @@ torso, every leg move is translated (the character has no legs) and the body gro
 the dancer's moves are SHOWN on this body, unit by unit, by setting a plan.
 
 How to work:
-0. Only if you are asked for a NEW character: make it first with the character tools. Create it from what you
-   were given (create_character_from_text / create_character_from_image); if it is a plush, blob or other soft body,
-   segment_character it, then import_and_rig_soft the segmented GLB and check that its arms were found (else try
-   `yaw` or another segmentation granularity). A humanoid or an animal with real legs can only be rig_humanoid'ed:
-   say that the dance needs a soft-rigged body and stop. Each Tripo call takes minutes and costs credits: never
-   repeat one that succeeded. The character you rig is the one you then dance with.
 1. Read the dance (get_dance_score, get_dance_signals, get_leg_events) and the character (get_character_spec).
    Note what each unit is about: arms, footwork, head and hair flips, turns.
 2. Read the plan format (get_plan_format). Every knob defaults to the plain copy.

@@ -234,7 +234,7 @@ def test_default_copy_plan_is_the_plain_copy(synth):
 
 
 def test_agent_revises_and_keeps_the_best(synth, tmp_path, monkeypatch):
-    from dancebuddy.agent.dance_only import run_agent
+    from dancebuddy.agent.director import plan_dance as run_agent
     from dancebuddy.tools.dance.plan import default_plan
 
     kp, score = synth

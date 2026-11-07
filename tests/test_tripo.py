@@ -76,25 +76,16 @@ def test_tools_are_registered():
         Tripo("k", client=fake_api([]), poll_s=0).as_input("not-a-file")
 
 
-def test_one_agent_makes_the_character_then_dances(tmp_path, monkeypatch):
-    """With --new-character the dance agent's toolbox offers the character tools too; dance tools wait for the
-    character, and a successful import_and_rig_soft makes it the character the agent dances with."""
-    from dancebuddy.tools import dance as tools
-    from evaluation.data.synth import make
-    from dancebuddy.tools.perception.video import build_dance_score, load_keypoints
+def test_one_agent_offers_tripo_tools_and_dance_tools(monkeypatch):
+    """One agent: with a Tripo key it can make a character; the dance tools appear once a dance is open, and the
+    dance-only setting (the evaluation) offers nothing but the dance tools."""
+    from dancebuddy.agent.director import Director
+    from dancebuddy.tools.dance import SPECS as DANCE_SPECS
 
-    d = make(tmp_path / "synth")
-    kp = load_keypoints(d / "keypoints.npz")
-    score = build_dance_score(kp)
-    box = tools.Toolbox(kp, score, None, None, tmp_path / "run", new_character="blob",
-                        tripo=Tripo("k", client=fake_api([]), poll_s=0))
-    names = [s["function"]["name"] for s in box.specs()]
-    assert "segment_character" in names and "submit_plan" in names
-    assert "no character yet" in json.loads(box.call("get_character_spec", {}))["error"]
-
-    plush = tools.ROOT / "assets" / "plush_soft"
-    monkeypatch.setattr(CharacterTools, "t_import_and_rig_soft",
-                        lambda self, a: {"character": "assets/plush_soft", "arms_found": True})
-    res = json.loads(box.call("import_and_rig_soft", {"model": "x.glb"}))
-    assert "now the character you dance with" in res["note"] and box.char_prefix == plush
-    assert "body" in json.dumps(json.loads(box.call("get_character_spec", {})))
+    monkeypatch.setenv("TRIPO_API_KEY", "k")
+    names = [s["function"]["name"] for s in Director().specs()]
+    assert "segment_character" in names and "import_character" in names and "perceive_dance" in names
+    assert "submit_plan" not in names
+    assert "open_dance first" in json.loads(Director().call("submit_plan", {}))["error"]
+    assert Director(dance_only=True).specs() == []
+    assert set(DANCE_SPECS) >= {"submit_plan", "get_dance_score"}

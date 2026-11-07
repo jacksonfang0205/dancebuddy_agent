@@ -82,26 +82,52 @@ and command, is saved in `runs/director/`.
 
 ## Evaluation
 
+The evaluation compares the agent with baselines and with itself minus one tool, on the same dances and the same
+plush. Every system starts from the same perceived dance, so the numbers measure planning, not perception.
+
+| System | What it is |
+|---|---|
+| `pose_copy` | no LLM: the dancer's torso angles copied straight onto the plush's bones |
+| `plain_copy` | no LLM: our motion copy (leg moves translated, groove on the beat) with no plan |
+| `planner` | LLM without the copy: plans primitive moves from a description of the body (our first prototype) |
+| `agent` | the DanceBuddy agent with every dance tool |
+| `agent_no_looks` | the agent without `look_at_frames` |
+| `agent_no_moves` | the agent without its own moves (knobs and accents only) |
+| `agent_numbers` | the agent with the numeric checks only |
+
+Metrics read only the plush's motion (posed in Blender), the dancer's pose and the dance score, the same for every
+system: accent recall (dancer accents the plush hits within 0.1 s), beat precision, motion correlation with the
+dancer, arm follow, hands in frame, arm folds and sinking, the same rhythm measures on rendered pixels, and LLM calls
+and cost.
+
 ```bash
 uv run pytest                                  # offline tests, no keys needed
-uv run python -m evaluation prepare            # perception on the evaluation dances
-uv run python -m evaluation run                # baselines, the agent and its ablations
+uv run python -m evaluation prepare            # perception on every dance in evaluation/data/dances.json
+uv run python -m evaluation run                # every system (--systems ..., --dance <id>, --no-llm)
 uv run python -m evaluation metrics --arms     # -> evaluation/results/results.{json,md}
+uv run python -m evaluation render --dance <id> --systems plain_copy agent   # optional side-by-side video
 ```
 
-List the evaluation clips (from the Drive folder above) in `evaluation/data/dances.json`.
+Add the evaluation clips (from the Drive folder above) to `evaluation/data/dances.json`; `synth`, a built-in
+synthetic dancer, needs no video. LLM runs are cached in `.cache/llm/`, so a rerun is free and gives the same answer.
 
 ## Layout
 
 ```
 dancebuddy/
-  agent/          the agent: director.py (the tool loop: go / chat), prompts.py, llm.py (OpenRouter),
-                  dance_only.py (the agent with only the dance tools, used by the evaluation)
+  agent/          director.py: the one tool loop (go, chat, and plan_dance for the evaluation);
+                  prompts.py: its instructions; llm.py: OpenRouter client with cache and cost ledger
   tools/          what the agent calls
     perception/   perceive_dance: MediaPipe pose -> dance score
     character/    import_character, Tripo tools, the character's rig and motion spec
     dance/        open_dance and the dance tools: the plan, plan -> motion, checks, arm geometry, vision review
     render.py     render_video: Blender render and side-by-side video
   blender/        scripts the tools run inside Blender
-evaluation/       baselines, data, metrics
+evaluation/
+  baselines/      the systems above (pose_copy, plain_copy, planner); the agent comes from dancebuddy/agent
+  data/           dances.json, characters.json, the synthetic dancer
+  metrics/        motion metrics and pixel metrics
+  results/        result tables and saved runs
+assets/           rigged plush characters, motion specs, rendered views, the MediaPipe model
+tests/            offline tests (mocked LLM and Tripo)
 ```
