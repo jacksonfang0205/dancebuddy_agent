@@ -37,7 +37,7 @@ def run(cmd: list[str], quiet: bool = False) -> None:
 def render_system(run_dir: Path, system: str, char: Path, engine: str = "cycles", width: int = 540,
                   height: int = 960, fps: float = 30, preview: bool = False, max_frames: int = 0) -> Path | None:
     """Render <run>/<system>/curves.json at `fps` (a 60 fps clip renders every other frame; 0 = the clip's own) into
-    <system>/frames, or a quick untextured half-size look into <system>/preview."""
+    <system>/frames, or a quick half-size look (EEVEE, textured) into <system>/preview."""
     curves_path = Path(run_dir) / system / "curves.json"
     if not curves_path.exists():
         print(f"skip {system}: no {curves_path}")
@@ -55,7 +55,7 @@ def render_system(run_dir: Path, system: str, char: Path, engine: str = "cycles"
         sub["n_frames"] = len(next(iter(sub["channels"].values())))
         render_curves = frames / "curves_render.json"
         render_curves.write_text(json.dumps(sub))
-    engine = "workbench" if preview else engine
+    engine = "eevee" if preview else engine  # preview: textured, half size
     width, height = (width // 2, height // 2) if preview else (width, height)
     (frames / "render_info.json").write_text(json.dumps(
         {"fps": src_fps / step, "step": step, "engine": engine, "size": [width, height], "preview": preview}))
@@ -111,7 +111,7 @@ RENDER_SPEC = {
     "type": "function", "function": {
         "name": "render_video",
         "description": "Render a kept version (keep_attempt) in Blender and put it next to the dancer with FFmpeg. "
-                       "preview (default true) = fast untextured; false = the final textured render (several minutes).",
+                       "preview (default true) = fast, half size; false = the final full-size render.",
         "parameters": {"type": "object", "properties": {"system": {"type": "string"}, "preview": {"type": "boolean"},
                                                         "engine": {"type": "string", "enum": ["eevee", "cycles"]}},
                        "required": ["system"]}}}

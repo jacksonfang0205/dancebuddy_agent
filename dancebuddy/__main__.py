@@ -213,7 +213,7 @@ def main(argv=None):
     s = add(sub, "render", cmd_render, "run"); char_opt(s); render_opts(s)
     s.add_argument("--systems", nargs="+", default=["agent"]); s.add_argument("--max-frames", type=int, default=0)
     s.add_argument("--fps", type=float, default=30, help="render frame rate (0 = the clip's own; default 30)")
-    s.add_argument("--preview", action="store_true", help="quick untextured preview into <system>/preview")
+    s.add_argument("--preview", action="store_true", help="quick half-size preview into <system>/preview")
     s = add(sub, "compose", cmd_compose, "run"); s.add_argument("--systems", nargs="+", default=["agent"])
     s.add_argument("--preview", action="store_true"); s.add_argument("--height", type=int, default=960)
     s = add(sub, "demo", cmd_demo, "video", "run"); char_opt(s); render_opts(s); agent_opts(s)

@@ -49,8 +49,8 @@ Or give it one request:
 uv run python -m dancebuddy go "the dance is data/videos/dance.mp4, the plush is assets/plush_soft: dance along"
 ```
 
-The result is `runs/<dance>/side_by_side_<version>_preview.mp4`. Ask for "the final render" to get the textured
-version. A request costs about $0.10 to $0.25.
+The result is `runs/<dance>/side_by_side_<version>_preview.mp4`, a half-size coloured preview. Ask for "the final
+render" to get it full size. A request costs about $0.10 to $0.25.
 
 ## What the agent does
 
