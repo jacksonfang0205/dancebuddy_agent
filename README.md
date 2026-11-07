@@ -20,6 +20,7 @@ cd dancebuddy_agent
 uv sync --extra render          # Python packages and Blender (bpy)
 cp .env.example .env            # add your OPENROUTER_API_KEY
 uv run python -m dancebuddy check
+uv run pytest                   # offline tests, no keys needed
 ```
 
 Videos are not in the repository. Put a short single-dancer clip in `data/videos/`, for example `dance.mp4` from our
@@ -80,18 +81,6 @@ and put it in your own `.env` (git-ignored, never commit it). Everything else wo
 `run_shell` refuses commands that delete files, push, or install packages. The terminal shows only the conversation (add `--verbose` to see tool calls and command output live). Each
 conversation, with every tool call, is saved in `runs/sessions/` with a log of everything the tools printed.
 
-## Evaluation
-
-```bash
-uv run pytest                                             # offline tests, no keys needed
-uv run python -m dancebuddy.evaluation prepare            # perception on every dance in data/dances.json
-uv run python -m dancebuddy.evaluation run                # baselines, the agent and its ablations
-uv run python -m dancebuddy.evaluation metrics --arms     # -> results/results.{json,md}
-```
-
-Add your clips to `data/dances.json` first; `synth`, a built-in synthetic dancer, needs no video. See
-`python -m dancebuddy.evaluation --help` for the systems and options.
-
 ## Repository layout
 
 ```
@@ -103,7 +92,7 @@ dancebuddy/
   user.py                 who answers ask_user: ConsoleUser, NoUser, ScriptedUser
   sandbox.py              run_terminal: the guarded shell behind run_shell
   agent/
-    session.py            AgentSession: the tool-calling loop; plan_dance (only the dance tools, for evaluation)
+    session.py            AgentSession: the tool-calling loop
     registry.py           Tool, ToolRegistry: tool schemas for the model and the dispatch
     prompts.py            the agent's instructions
     tools/                what the agent can call
@@ -113,14 +102,10 @@ dancebuddy/
       dance/              open_dance, get_*, submit_plan, check_arm_geometry, look_at_frames, keep_attempt;
                           the plan, plan -> motion curves, the checks
       render.py           render_video: Blender render and side-by-side video
-  evaluation/             python -m dancebuddy.evaluation: baselines, ablations, metrics, the synthetic dancer
   blender/                scripts the tools run inside Blender (rigging, posing, rendering, mesh checks)
 data/
-  dances.json             the evaluation dances (videos are not committed)
-  characters.json         the characters the evaluation can use
   videos/                 your dance clips (git-ignored)
 assets/                   rigged plush characters, motion specs, rendered views, the MediaPipe model
-results/                  evaluation tables and saved runs
 tests/                    offline tests: mocked LLM and Tripo, no keys needed
 runs/                     everything the agent writes (git-ignored)
 ```
