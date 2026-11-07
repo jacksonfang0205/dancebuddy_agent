@@ -134,12 +134,12 @@ def cmd_demo(a):
 
 def cmd_go(a):
     from dancebuddy.chat import go
-    go(" ".join(a.request), model=a.model)
+    go(" ".join(a.request), model=a.model, verbose=a.verbose)
 
 
 def cmd_chat(a):
     from dancebuddy.chat import chat
-    chat(model=a.model, first=" ".join(a.request) or None)
+    chat(model=a.model, first=" ".join(a.request) or None, verbose=a.verbose)
 
 
 # ------------------------------------------------------------------ characters
@@ -198,8 +198,9 @@ def main(argv=None):
         s.add_argument("--attempts", type=int, default=4, help="plans the agent may submit")
         s.add_argument("--looks", type=int, default=4, help="times the agent may look at rendered frames")
 
-    s = add(sub, "go", cmd_go); s.add_argument("request", nargs="+"); s.add_argument("--model")
-    s = add(sub, "chat", cmd_chat); s.add_argument("request", nargs="*"); s.add_argument("--model")
+    for name, fn, n in (("go", cmd_go, "+"), ("chat", cmd_chat, "*")):
+        s = add(sub, name, fn); s.add_argument("request", nargs=n); s.add_argument("--model")
+        s.add_argument("--verbose", action="store_true", help="show tool calls and command output live")
     s = add(sub, "check", cmd_check); s.add_argument("--llm", action="store_true", help="also make one small LLM call")
     s = add(sub, "perceive", cmd_perceive, "video", "run"); s.add_argument("--max-seconds", type=float)
     s = add(sub, "agent", cmd_agent, "run"); char_opt(s); agent_opts(s)

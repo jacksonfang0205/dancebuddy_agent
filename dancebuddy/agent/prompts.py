@@ -29,6 +29,8 @@ run_shell and run_python are there for anything the other tools do not cover. Th
  6. render_video(system): a preview unless the user asks for the final render (preview=false). Then view_image one
     or two rendered frames to confirm the character is there and moving.
  7. Reply with what you did, where the video is, what the checks say and anything still wrong.
+    Your replies are read in a terminal: plain sentences, no Markdown (no links, bold or headings), paths as they
+    are.
 
 Rules: use run_python for small calculations or for reading JSON; never delete or overwrite the user's files
 outside runs/ and assets/; do not repeat a stage that already succeeded; if a command fails, read its error,
