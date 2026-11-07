@@ -60,6 +60,9 @@ The project is at {root} (the working directory of every command). Python is `py
     revise). The user's wishes come first: if they ask for something the dancer does not do (keep spinning, just
     bounce, freeze at the end, stay still and only wave), use plan.layers (see get_plan_format) and make sure
     checks.requests passes. Units the user took off the copy do not need to pass the copy checks.
+    Do not chase the accent check with big moves: a hit is better as a squash (size up to 1.0) than as a hop, use
+    a hop only where the dancer jumps, and keep arms at most 1.2. A smooth copy that misses an accent or two is
+    better than a jerky one that passes.
  5. keep_attempt: write the attempt you choose to runs/NAME/<system>. Give each new version its own short system
     name that says what it is (agent_spin, agent_bounce, ...), so earlier results are kept; use the same name only
     when the user asks to replace one. The video is then runs/NAME/side_by_side_<system>[_preview].mp4.
@@ -117,7 +120,10 @@ WORK_SPECS = {
         "written to runs/NAME/<workdir>.",
         {"type": "object", "properties": {"run": {"type": "string"}, "character": {"type": "string"},
                                           "workdir": {"type": "string", "description": "default agent_work"},
-                                          "attempts": {"type": "integer", "description": "plans allowed (default 6)"}},
+                                          "attempts": {"type": "integer", "description": "plans allowed (default 6)"},
+                                          "own_moves": {"type": "boolean", "description": "allow plan.moves (default "
+                                                        "false: they blend in within a few frames and look like "
+                                                        "snapping; only when the user asks for a specific pose)"}},
          "required": ["run", "character"]}),
     "keep_attempt": llm.tool_spec(
         "keep_attempt", "Copy an attempt (default: the best by the checks) to runs/NAME/<system> so it can be "
@@ -363,7 +369,8 @@ class Director:
         self.box = Toolbox(load_keypoints(run / "keypoints.npz"), score, character_kb.rig(char),
                            character_kb.spec(char), out, blend=character_kb.blend(char),
                            source=src if src and Path(src).exists() else None, model=self.model,
-                           max_attempts=int(a.get("attempts") or 6), max_looks=4)
+                           max_attempts=int(a.get("attempts") or 6), max_looks=4,
+                           use_moves=bool(a.get("own_moves", False)))
         self.run_dir, self.char = run, char
         return {"run": str(run.relative_to(ROOT)) if run.is_relative_to(ROOT) else str(run),
                 "character": str(char.relative_to(ROOT)) if char.is_relative_to(ROOT) else str(char),
