@@ -82,34 +82,15 @@ conversation, with every tool call, is saved in `runs/sessions/` with a log of e
 
 ## Evaluation
 
-The evaluation compares the agent with baselines and with itself minus one tool, on the same dances and the same
-plush. Every system starts from the same perceived dance, so the numbers measure planning, not perception.
-
-| System | What it is |
-|---|---|
-| `pose_copy` | no LLM: the dancer's torso angles copied straight onto the plush's bones |
-| `plain_copy` | no LLM: our motion copy (leg moves translated, groove on the beat) with no plan |
-| `planner` | LLM without the copy: plans primitive moves from a description of the body (our first prototype) |
-| `agent` | the DanceBuddy agent with every dance tool |
-| `agent_no_looks` | the agent without `look_at_frames` |
-| `agent_no_moves` | the agent without its own moves (knobs and accents only) |
-| `agent_numbers` | the agent with the numeric checks only |
-
-Metrics read only the plush's motion (posed in Blender), the dancer's pose and the dance score, the same for every
-system: accent recall (dancer accents the plush hits within 0.1 s), beat precision, motion correlation with the
-dancer, arm follow, hands in frame, arm folds and sinking, the same rhythm measures on rendered pixels, and LLM calls
-and cost.
-
 ```bash
-uv run pytest                                  # offline tests, no keys needed
+uv run pytest                                             # offline tests, no keys needed
 uv run python -m dancebuddy.evaluation prepare            # perception on every dance in data/dances.json
-uv run python -m dancebuddy.evaluation run                # every system (--systems ..., --dance <id>, --no-llm)
+uv run python -m dancebuddy.evaluation run                # baselines, the agent and its ablations
 uv run python -m dancebuddy.evaluation metrics --arms     # -> results/results.{json,md}
-uv run python -m dancebuddy.evaluation render --dance <id> --systems plain_copy agent   # optional side-by-side video
 ```
 
-Add the evaluation clips (from the Drive folder above) to `data/dances.json`; `synth`, a built-in
-synthetic dancer, needs no video. LLM runs are cached in `.cache/llm/`, so a rerun is free and gives the same answer.
+Add your clips to `data/dances.json` first; `synth`, a built-in synthetic dancer, needs no video. See
+`python -m dancebuddy.evaluation --help` for the systems and options.
 
 ## Repository layout
 
