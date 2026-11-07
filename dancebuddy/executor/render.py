@@ -69,7 +69,7 @@ def render_system(run_dir: Path, system: str, char: Path, engine: str = "cycles"
 
 
 def compose(run_dir: Path, systems: list[str], preview: bool = False, height: int = 960) -> Path:
-    """dancer | system 1 | system 2 ... as one video (side_by_side.mp4), each labelled."""
+    """dancer | system 1 | system 2 ... as one video (side_by_side.mp4, or side_by_side_<systems>.mp4), each labelled."""
     run_dir = Path(run_dir)
     score = json.loads((run_dir / "dance_score.json").read_text())
     src = (run_dir / "source.txt").read_text().strip() if (run_dir / "source.txt").exists() else score["source"]
@@ -96,7 +96,8 @@ def compose(run_dir: Path, systems: list[str], preview: bool = False, height: in
         parts.append("".join(f"[v{i}]" for i in range(len(labels))) + f"hstack=inputs={len(labels)}:shortest=1[out]")
         return ";".join(parts)
 
-    out = run_dir / ("side_by_side_preview.mp4" if preview else "side_by_side.mp4")
+    tag = "" if systems == ["agent"] else "_" + "_".join(systems)
+    out = run_dir / f"side_by_side{tag}{'_preview' if preview else ''}.mp4"
     for with_text in (True, False):
         cmd = ["ffmpeg", "-y", "-loglevel", "error", *inputs, "-filter_complex", graph(with_text), "-map", "[out]",
                "-map", "0:a?", "-c:v", "libx264", "-c:a", "aac", "-shortest", "-pix_fmt", "yuv420p", str(out)]

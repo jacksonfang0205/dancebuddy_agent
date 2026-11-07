@@ -10,6 +10,8 @@ is used, how each leg event is translated, and which accents get an extra emphas
   legs[]      per leg event (index from get_leg_events): skip it, or scale its translation
   emphasis[]  an extra move on an accent frame: squash, hop, nod, tilt_left, tilt_right, twist
   moves       the agent's own moves, as lines of code (moves.py): a pose for an arm or the body at a time
+  layers[]    motions that are not in the dance, over a time window: spin, bounce, sway, still, freeze
+              (for requests such as "keep spinning" or "just bounce to the beat")
 """
 
 from __future__ import annotations
@@ -33,6 +35,23 @@ EMPHASIS_MOVES = {  # move: (what it does, full size)
     "tilt_right": ("the body tilts to the character's right on the accent (deg)", 15.0),
     "twist": ("the body twists on the accent (deg)", 25.0),
 }
+
+LAYERS = {  # type: (what it does, default size, size unit)
+    "spin": ("the whole body keeps turning round; rate = turns per second (default 0.5); ends facing the camera",
+             None, None),
+    "bounce": ("the body hops up between beats and lands on each beat", 0.06, "body heights"),
+    "sway": ("the body rocks side to side, one side per beat", 12.0, "deg"),
+    "still": ("the copy is switched off: the body stays upright, the arms rest as modelled; other layers still play", None, None),
+    "freeze": ("the character holds the pose it has at the start of the window", None, None),
+}
+LAYER_SCHEMA = {"type": "object", "properties": {
+    "type": {"type": "string", "enum": list(LAYERS)},
+    "start_s": {"type": "number", "minimum": 0}, "end_s": {"type": "number", "minimum": 0},
+    "rate": {"type": "number", "minimum": 0.1, "maximum": 3.0, "description": "spin: turns per second"},
+    "direction": {"type": "string", "enum": ["left", "right"], "description": "spin: which way (default left)"},
+    "size": {"type": "number", "minimum": 0.0, "description": "bounce: body heights (default 0.06, at most 0.2); "
+             "sway: degrees (default 12, at most 25)"}},
+    "required": ["type", "start_s", "end_s"]}
 
 PLAN_SCHEMA = {
     "type": "object",
@@ -63,6 +82,8 @@ PLAN_SCHEMA = {
             "required": ["frame", "move"]}},
         "moves": {"type": "string", "description": "the agent's own moves: lines of arm(...), body(...), hit(...) "
                   "calls (see get_plan_format); they take over from the copy around their times"},
+        "layers": {"type": "array", "items": LAYER_SCHEMA,
+                   "description": "motions that are not in the dance (see get_plan_format)"},
         "summary": {"type": "string"},
     },
     "required": ["units"],
@@ -122,3 +143,85 @@ def emphasis_curves(plan: dict | None, n: int, fps: float, height: float) -> dic
         elif move == "twist":
             out["twist"] += size * env
     return out
+
+
+def _window(n: int, fps: float, s: float, e: float, ramp: float = 0.25) -> np.ndarray:
+    x = np.arange(n) / fps
+    w = np.clip(np.minimum((x - s) / ramp + 1, (e - x) / ramp + 1), 0, 1)  # full inside [s, e], ramps outside
+    return w * w * (3 - 2 * w)
+
+
+def layer_curves(plan: dict | None, n: int, fps: float, beats: list[int] | None = None) -> dict:
+    """Per frame: added turn (deg), lift (body heights), tilt (deg), squash; `still` (0..1, the copy switched off);
+    freeze windows as (start, end) frames."""
+    z = np.zeros(n)
+    out = {"turn": z.copy(), "lift": z.copy(), "tilt": z.copy(), "squash": z.copy(), "still": z.copy(),
+           "freeze": []}
+    layers = (plan or {}).get("layers") or []
+    if not layers:
+        return out
+    if beats and len(beats) >= 2:
+        b = sorted(int(x) for x in beats)
+        period = float(np.median(np.diff(b)))
+        xs = np.r_[b[0] - period * 50, b, b[-1] + period * 50]
+        phase = np.interp(np.arange(n), xs, np.r_[-50, np.arange(len(b)), len(b) - 1 + 50])
+    else:
+        phase = np.arange(n) / (0.5 * fps)  # 120 bpm
+    for ly in layers:
+        s, e = float(ly["start_s"]), float(ly["end_s"])
+        if e <= s:
+            continue
+        kind = ly["type"]
+        if kind == "spin":
+            speed = _window(n, fps, s, e, 0.3)
+            rate = float(np.clip(ly.get("rate", 0.5), 0.1, 3.0))
+            angle = np.cumsum(speed) / fps * rate * 360.0
+            total = angle[-1]
+            if total > 1e-6:  # end facing the camera: a whole number of turns
+                angle *= max(1, round(total / 360.0)) * 360.0 / total
+            out["turn"] += (-1.0 if ly.get("direction") == "right" else 1.0) * angle
+        elif kind == "bounce":
+            w = _window(n, fps, s, e, 0.15)
+            size = float(np.clip(ly.get("size", LAYERS["bounce"][1]), 0.0, 0.2))
+            frac = phase % 1.0
+            out["lift"] += w * size * np.sin(np.pi * frac)
+            out["squash"] += w * 0.6 * np.exp(-0.5 * (np.minimum(frac, 1 - frac) / 0.08) ** 2) * min(0.15, size * 1.5)
+        elif kind == "sway":
+            w = _window(n, fps, s, e, 0.3)
+            size = float(np.clip(ly.get("size", LAYERS["sway"][1]), 0.0, 25.0))
+            out["tilt"] += w * size * np.sin(np.pi * phase)
+        elif kind == "still":
+            out["still"] = np.maximum(out["still"], _window(n, fps, s, e, 0.3))
+        elif kind == "freeze":
+            a, b2 = int(round(s * fps)), int(round(e * fps))
+            if 0 <= a < n:
+                out["freeze"].append((a, min(n - 1, b2)))
+    return out
+
+
+def apply_freeze(channels: dict, windows: list, fps: float) -> None:
+    """Hold every channel at its value at the start of each window (blending out over ~0.2 s), in place."""
+    if not windows:
+        return
+    first = next(iter(channels.values()))
+    n = len(first)
+    ramp = max(1, int(round(0.2 * fps)))
+    for a, b in windows:
+        w = np.zeros(n)
+        w[a:b + 1] = 1.0
+        tail = np.arange(1, ramp + 1)
+        idx = b + tail
+        ok = idx < n
+        w[idx[ok]] = 1.0 - tail[ok] / (ramp + 1)
+        for name, vals in channels.items():
+            arr = np.asarray(vals, float)
+            held = arr[a]
+            arr = arr.reshape(n, -1)
+            held = np.reshape(held, (1, -1))
+            if name.endswith(".quat"):  # q and -q are the same turn: blend along the short way
+                held = np.where((arr @ held.T) < 0, -held, held)
+            arr = (1 - w[:, None]) * arr + w[:, None] * held
+            if name.endswith(".quat"):
+                arr /= np.linalg.norm(arr, axis=1, keepdims=True)
+            arr = arr.reshape(np.shape(vals))
+            channels[name] = np.round(arr, 5).tolist()

@@ -23,7 +23,7 @@ from jsonschema import Draft202012Validator
 
 from dancebuddy import llm
 from dancebuddy.actions import moves as moves_mod
-from dancebuddy.actions.plan import EMPHASIS_MOVES, KNOBS, PLAN_SCHEMA, default_plan
+from dancebuddy.actions.plan import EMPHASIS_MOVES, KNOBS, LAYERS, PLAN_SCHEMA, default_plan
 from dancebuddy.characters.make import CHARACTER_SPECS, ROOT, CharacterTools
 from dancebuddy.critics.inspect import check_arm_geometry, look_at_frames, pick_frames
 from dancebuddy.critics.numbers import check_curves
@@ -155,7 +155,14 @@ class Toolbox:
         fmt = {"unit_knobs": {k: {"default": v[0], "range": [v[1], v[2]], "meaning": v[3]} for k, v in KNOBS.items()},
                "legs": "per leg event index: skip (bool) and size (x default translation, 0.3-1.6)",
                "emphasis_moves": {k: v[0] for k, v in EMPHASIS_MOVES.items()},
-               "emphasis_size": "0.1-1.0 of the move's full size", "default_plan": default_plan(self.score)}
+               "emphasis_size": "0.1-1.0 of the move's full size", "default_plan": default_plan(self.score),
+               "layers": {"how": "plan.layers: motions that are not in the dance, each over [start_s, end_s] "
+                                 "(seconds). Use them when the user asks for something other than the copy, e.g. "
+                                 "'spin the whole time' = a spin layer over the whole clip. They add onto the copy; "
+                                 "add a still layer over the same window to drop the copy there (layers only). "
+                                 "submit_plan then reports checks.requests: whether each layer showed.",
+                          "types": {k: v[0] + (f" (size default {v[1]} {v[2]})" if v[1] is not None else "")
+                                    for k, v in LAYERS.items()}}}
         if self.use["moves"]:
             fmt["moves"] = {"how": moves_mod.__doc__.split("\n\n", 1)[1],
                             "poses": {k: dict(zip(("raise_", "forward", "bend", "fist"), v))
@@ -177,7 +184,7 @@ class Toolbox:
             return {"error": "moves do not parse", "details": str(e)}
         curves = retarget(self.kp, self.rig, signals=self.signals, beats=self.score["beats"], plan=args,
                           score=self.score)
-        res = check_curves(curves, self.score, self.rig, self.spec)
+        res = check_curves(curves, self.score, self.rig, self.spec, plan=args)
         k = len(self.attempts) + 1
         d = self.out / f"attempt_{k}"
         d.mkdir(parents=True, exist_ok=True)

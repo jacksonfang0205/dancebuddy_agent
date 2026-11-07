@@ -2,6 +2,10 @@
 
   python -m dancebuddy check                          # is everything installed and configured?
 
+The whole pipeline from a request (the agent finds the files and runs every stage):
+  python -m dancebuddy go "make plush_soft dance to assets/dance2.mp4 and keep spinning"
+  python -m dancebuddy chat                           # the same, as a conversation
+
 Per dance:
   python -m dancebuddy perceive VIDEO runs/my          # perception: pose -> keypoints + dance score
   python -m dancebuddy agent    runs/my                # the agent: read, plan, act, check, look, revise
@@ -123,7 +127,7 @@ def cmd_replay(a):
     out = run_dir / a.name
     out.mkdir(exist_ok=True)
     (out / "curves.json").write_text(json.dumps(curves))
-    (out / "checks.json").write_text(json.dumps(check_curves(curves, score, rig, character.spec(a.char)), indent=1))
+    (out / "checks.json").write_text(json.dumps(check_curves(curves, score, rig, character.spec(a.char), plan=json.loads(Path(a.plan).read_text())), indent=1))
     print(f"replay: {curves['n_frames']} frames -> {out}")
 
 
@@ -142,6 +146,16 @@ def cmd_demo(a):
                                  no_looks=False, no_geometry=False, no_moves=False))
     render_system(Path(a.run), "agent", a.char, a.engine, a.width, a.height, 30, a.preview)
     compose(Path(a.run), ["agent"], a.preview, a.height)
+
+
+def cmd_go(a):
+    from dancebuddy.planner.director import go
+    go(" ".join(a.request), model=a.model)
+
+
+def cmd_chat(a):
+    from dancebuddy.planner.director import chat
+    chat(model=a.model, first=" ".join(a.request) or None)
 
 
 # ------------------------------------------------------------------ characters
@@ -200,6 +214,8 @@ def main(argv=None):
         s.add_argument("--attempts", type=int, default=4, help="plans the agent may submit")
         s.add_argument("--looks", type=int, default=4, help="times the agent may look at rendered frames")
 
+    s = add(sub, "go", cmd_go); s.add_argument("request", nargs="+"); s.add_argument("--model")
+    s = add(sub, "chat", cmd_chat); s.add_argument("request", nargs="*"); s.add_argument("--model")
     s = add(sub, "check", cmd_check); s.add_argument("--llm", action="store_true", help="also make one small LLM call")
     s = add(sub, "perceive", cmd_perceive, "video", "run"); s.add_argument("--max-seconds", type=float)
     s = add(sub, "agent", cmd_agent, "run"); char_opt(s); agent_opts(s)

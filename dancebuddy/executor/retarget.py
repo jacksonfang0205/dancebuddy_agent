@@ -430,7 +430,7 @@ def groove(n: int, fps: float, beats: list[int] | None, busy: np.ndarray) -> dic
 def retarget(kp: dict, rig: dict, signals: dict | None = None, beats: list[int] | None = None,
              plan: dict | None = None, score: dict | None = None) -> dict:
     """plan: the agent's decisions (actions/plan.py); None = the plain copy. score: the dance score (move units)."""
-    from dancebuddy.actions.plan import emphasis_curves, knob_curves, leg_overrides
+    from dancebuddy.actions.plan import apply_freeze, emphasis_curves, knob_curves, layer_curves, leg_overrides
     fps = float(kp["fps"])
     w = to_blender(kp["world"])
     w = np.stack([np.stack([smooth(w[:, j, k], 1.5) for k in range(3)], -1) for j in range(w.shape[1])], 1)
@@ -449,13 +449,18 @@ def retarget(kp: dict, rig: dict, signals: dict | None = None, beats: list[int] 
     legs = translate_legs(kp, signals, leg_overrides(plan))
     height = float(rig.get("height_m", 1.4))
     knob = knob_curves(plan, score, n, fps)
+    lay = layer_curves(plan, n, fps, beats)  # motions that are not in the dance (spin, bounce, still, ...)
+    copy = 1.0 - lay["still"]
+    for k in ("body", "groove", "head", "travel"):
+        knob[k] = knob[k] * copy
+    legs = {**legs, **{k: np.asarray(legs[k], float) * copy for k in ("lift", "squash", "tilt")}}
     from dancebuddy.actions.moves import curves as move_curves, parse as parse_moves
     mv = move_curves(parse_moves((plan or {}).get("moves", "")), n, fps)  # the agent's own moves
     emph = emphasis_curves({"emphasis": [*(plan or {}).get("emphasis", []), *mv["emphasis"]]}, n, fps, height)
 
     # ---- body: turn, side tilt, forward lean of the dancer's torso, scaled to the character
     X, Z = T[:, :, 0], T[:, :, 2]
-    turn = body_turn(kp, T)                                  # + = dancer's left side turns away from the camera
+    turn = body_turn(kp, T) * copy                           # + = dancer's left side turns away from the camera
     side, lean = [], []
     for i in range(n):
         z = Rot.from_euler("z", -turn[i], degrees=True).apply(Z[i])
@@ -478,16 +483,17 @@ def retarget(kp: dict, rig: dict, signals: dict | None = None, beats: list[int] 
     delay = int(round(STYLE["follow_delay_s"] * fps))
     diff = arm_up["L"] - arm_up["R"]
     follow = np.r_[np.full(delay, diff[0]), diff[:n - delay]] if delay < n else np.zeros(n)
-    side = soft_limit(side + STYLE["follow_tilt_deg"] * smooth(follow, 3.0), BODY["side_max"])
+    side = soft_limit(side + STYLE["follow_tilt_deg"] * smooth(follow, 3.0) * copy, BODY["side_max"])
     busy = np.maximum.reduce([np.abs(side), np.abs(lean), np.abs(turn) / 2])
     gv = groove(n, fps, beats, busy)
     gv = {k: v * knob["groove"] for k, v in gv.items()}
     side = side + gv["tilt"]
-    turn = turn + gv["twist"]
+    turn = turn + gv["twist"] + lay["turn"]
     # ---- soft body: split the side tilt into a tilt on the base and a bend of the body (C), add the hip lift and the
     # hips' sway (S), and let the bent lower body bulge
     bend_c = side * SOFT["bend_share"]
     side = side - bend_c                                       # the rigid part, on the base
+    side = side + lay["tilt"]                                  # a requested sway rocks the whole body
     hip_t = hip_tilt(kp, aspect)                               # + = the dancer's left hip higher
     sway = smooth(np.asarray(signals.get("hip_sway", np.zeros(n)), float), 1.5)
     lower_bend = soft_limit(0.5 * bend_c - SOFT["hip_bend"] * hip_t + SOFT["sway_bend"] * sway, SOFT["bend_max"])
@@ -511,10 +517,11 @@ def retarget(kp: dict, rig: dict, signals: dict | None = None, beats: list[int] 
         tilt_up = body[i].apply([0.0, 0.0, 1.0])
         roll = float(rig.get("base_radius_m", 0.0)) * np.sqrt(max(0.0, 1 - tilt_up[2] ** 2))
         ch["root.loc"].append([round(float(legs["shift"][i] * knob["travel"][i] * height), 4),
-                               round(float((legs["lift"][i] + emph["lift"][i] + mv["body"]["lift"][i]) * height + roll), 4),
+                               round(float((legs["lift"][i] + emph["lift"][i] + mv["body"]["lift"][i] + lay["lift"][i])
+                                           * height + roll), 4),
                                0.0])
     ch["root.squash"] = [round(float(x), 4) for x in np.clip(legs["squash"] + gv["pulse"] + emph["squash"]
-                                                             + mv["body"]["squash"], -0.1, 0.25)]
+                                                             + mv["body"]["squash"] + lay["squash"], -0.1, 0.25)]
     if "body_upper" in M:
         ch["body_upper.quat"] = [_local(M["body_upper"], ident, upper_bend[i]) for i in range(n)]
     if "body_lower" in M:
@@ -598,6 +605,10 @@ def retarget(kp: dict, rig: dict, signals: dict | None = None, beats: list[int] 
         raw = [(match_rest(T[i].T @ upper[side_name][i], rest_dir),
                 match_rest(T[i].T @ fore[side_name][max(0, i - lag_f)], rest_dir)) for i in range(n)]
         am = mv["arm"][side_name]  # the agent's own arm moves take over from the copy where they are set
+        if lay["still"].any():  # copy switched off: the arm goes back to its modelled rest pose
+            take = lay["still"] > am["w"]
+            am = {**am, "w": np.where(take, lay["still"], am["w"]),
+                  "u": np.where(take[:, None], rest_dir, am["u"]), "f": np.where(take[:, None], rest_dir, am["f"])}
         raw = [(_norm((1 - am["w"][i]) * u + am["w"][i] * am["u"][i]),
                 _norm((1 - am["w"][i]) * f + am["w"][i] * am["f"][i])) if am["w"][i] > 0 else (u, f)
                for i, (u, f) in enumerate(raw)]
@@ -638,6 +649,7 @@ def retarget(kp: dict, rig: dict, signals: dict | None = None, beats: list[int] 
         if f"fist_{side_name}" in rig.get("shape_keys", {}):
             ch[f"{name}.fist"] = [round(float(x), 3) for x in np.clip(smooth(fist, 0.05 * fps), 0, 1)]
 
+    apply_freeze(ch, lay["freeze"], fps)
     return {"fps": fps, "n_frames": n, "character": rig.get("name", "character"), "channels": ch,
             "retarget": {"body": BODY, "soft": SOFT, "style": STYLE, "groove": GROOVE,
                          "arms_turned_out_of_body": clear_report},

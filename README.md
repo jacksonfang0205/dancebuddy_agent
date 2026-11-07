@@ -104,6 +104,22 @@ each run writes its own cost to `summary.json`. A run costs about $0.10.
 
 ## 3. Run the agent on a dance
 
+### From a request (the agent runs every stage)
+
+```bash
+uv run python -m dancebuddy go "make plush_soft dance to assets/dance2.mp4 and keep spinning slowly"
+uv run python -m dancebuddy chat
+```
+
+The agent finds the video and the character, runs perception, imports and rigs a new GLB if you give one, plans
+the dance, renders a preview and composes the side-by-side video, using shell and Python tools. `chat` is the same
+agent in a conversation: follow-ups like "now just bounce, no copying" revise the same run. Requests the dancer does
+not do become plan layers (`spin`, `bounce`, `sway`, `still`, `freeze`), each checked after every plan. Commands
+that delete files, push, or install packages are refused. The conversation and every command are saved under
+`runs/director/`.
+
+### Stage by stage
+
 Use a 10–30 s video of one person, whole body in view, filmed from the front. Use a new run folder for each video.
 
 ```bash
